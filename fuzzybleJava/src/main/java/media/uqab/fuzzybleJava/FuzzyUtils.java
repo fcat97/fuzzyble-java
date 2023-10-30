@@ -1,6 +1,5 @@
 package media.uqab.fuzzybleJava;
 
-import java.lang.invoke.MutableCallSite;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -38,7 +37,7 @@ class FuzzyUtils {
                 exact.add(s);
             }
             exactQuery.close();
-            if (exact.size() > 0) return exact.toArray(new String[0]);
+            if (exact.size() > 0) return exact.toArray(new String[]{});
         } catch (Exception e) {
             e.printStackTrace();
         }

@@ -11,33 +11,16 @@ java {
     withJavadocJar()
 }
 
+dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.3'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.8.1'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.3'
+    testImplementation("org.xerial:sqlite-jdbc:3.43.2.2")
+}
+
 def groupId = 'media.uqab.fuzzyble'
 def artifactId = 'fuzzybleJava'
-def artifactVersion = '0.4.1'
-
-
-afterEvaluate {
-    publishing {
-        publications {
-            fuzzyble(MavenPublication) {
-                group = 'media.uqab.fuzzyble'
-                version = '0.4.2'
-                artifactId = "fuzzybleJava"
-                from components.java
-
-                pom {
-                    developers {
-                        developer {
-                            name = "fCat97"
-                            email = "fcat48241@gmail.com"
-                            url = "https://www.github.com/fCat97"
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
+def artifactVersion = '0.5.1'
 
 task createJarPropertiesFile(type: Copy) {
     from {
@@ -74,9 +57,29 @@ task copyJars(type: Copy) {
     }
 }
 
-dependencies {
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.3'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.3'
+
+publishToMavenLocal.dependsOn(test)
+afterEvaluate {
+    publishing {
+        publications {
+            fuzzyble(MavenPublication) {
+                group = groupId
+                version = artifactVersion
+                artifactId = "fuzzybleJava"
+                from components.java
+
+                pom {
+                    developers {
+                        developer {
+                            name = "fCat97"
+                            email = "fcat48241@gmail.com"
+                            url = "https://www.github.com/fCat97"
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 test {

@@ -119,9 +119,12 @@ public class FuzzyCursor {
     /**
      * Mark a column as populated
      * @param column {@linkplain FuzzyColumn}
-     * @param isPopulated flag to mark
+     * @param isPopulated flag to mark.
+     * @throws IOException if any io error occur
+     * @throws RuntimeException if the {@linkplain FuzzyColumn} is not fuzzyble.
      */
-    public void markPopulated(FuzzyColumn column, boolean isPopulated) {
+    public void markPopulated(FuzzyColumn column, boolean isPopulated) throws IOException, RuntimeException {
+        throwIfNotFuzzyble(column);
         databaseUtil.markPopulated(column, isPopulated);
     }
 
@@ -129,7 +132,10 @@ public class FuzzyCursor {
      * Initiate fuzzy search on a {@link FuzzyColumn}.
      *
      * <p>
-     * This will create a table in mutable database.
+     * This will create a table in mutable database but <b><u>fuzzy is not enabled yet.</u></b>
+     * To enable fuzzy on a column, either use {@linkplain FuzzyCursor#populate}
+     * for entire column, or use {@linkplain FuzzyCursor#addToFuzzySearch} to add
+     * data manually.
      *
      * @param column {@link FuzzyColumn} on which fuzzy search will be performed
      * @param deletePrevious delete previous data for this column.
@@ -142,7 +148,7 @@ public class FuzzyCursor {
      * Populate with fuzzy search data for {@link FuzzyColumn}.
      *
      * <p>
-     * This will populate data from immutable database into mutable one.
+     * This will populate data from immutable (source) database into mutable (sink) one.
      *
      * @param column {@link FuzzyColumn} on which fuzzy search will be performed
      * @param force if `true`, ignore previous data and redo the process.
@@ -151,9 +157,7 @@ public class FuzzyCursor {
      * To enable use {@linkplain FuzzyCursor#createFuzzyble}.
      */
     public void populate(FuzzyColumn column, boolean force) throws IOException, RuntimeException {
-        if (!isFuzzyble(column)) {
-            throw new RuntimeException(column.column + " is not fuzzyble. use `createFuzzyble()` to enable.");
-        }
+        throwIfNotFuzzyble(column);
         databaseUtil.populateTable(column, force);
     }
 
@@ -165,7 +169,7 @@ public class FuzzyCursor {
      * @throws RuntimeException if the column is not fuzzyble
      */
     public void addToFuzzySearch(FuzzyColumn column, String text) throws IOException, RuntimeException {
-        if (!isFuzzyble(column)) throw new RuntimeException(column.column + " is not fuzzyble");
+        throwIfNotFuzzyble(column);
         databaseUtil.addToFuzzySearch(column, text);
     }
 
@@ -178,10 +182,17 @@ public class FuzzyCursor {
      * @return Fuzzy suggestions.
      */
     public String[] getFuzzyWords(FuzzyColumn column, String word) throws IOException, RuntimeException {
-        if (isFuzzyble(column)) {
-            return fuzzyUtils.getWordSuggestions(syncDatabase, column, word);
-        } else {
-            throw new RuntimeException("fuzzy search not enabled on column " + column.column);
-        }
+        throwIfNotFuzzyble(column);
+        return fuzzyUtils.getWordSuggestions(syncDatabase, column, word);
+    }
+
+    /**
+     * Check if fuzzyble or not, if not throw an exception
+     * @param column {@link FuzzyColumn} column to check
+     * @throws IOException if any io exception.
+     * @throws RuntimeException if column is not fuzzyble
+     */
+    private void throwIfNotFuzzyble(FuzzyColumn column) throws IOException, RuntimeException {
+        if (! isFuzzyble(column)) throw new RuntimeException(column.column + " is not fuzzyble. use `createFuzzyble()` to enable.");
     }
 }

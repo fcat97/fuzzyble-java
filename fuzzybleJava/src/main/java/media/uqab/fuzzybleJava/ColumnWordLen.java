@@ -6,6 +6,6 @@ public class ColumnWordLen extends FuzzyColumn {
     }
 
     String getFuzzyTableName() {
-        return "fuzzyble_" + table + "_" + column;
+        return "fuzzyble_wordlen_" + table + "_" + column;
     }
 }

@@ -40,7 +40,7 @@ class DatabaseUtil {
      */
     void populateTable(FuzzyColumn column, boolean force) throws IOException {
         // if data exists(populated) or not forced, return
-        if (isPopulated(column) || !force) return;
+        if (isPopulated(column) && !force) return;
 
         // get text of that columns
         SqlCursor textCursor = sourceDatabase.onQuery(getDataQuery(column));
@@ -113,7 +113,7 @@ class DatabaseUtil {
         SqlCursor cursor = syncDatabase.onQuery(query, args);
 
         if (cursor.moveToNext()) {
-            String s = cursor.getString(1);
+            String s = cursor.getString(2);
             return Integer.parseInt(s) == 1;
         }
 
@@ -142,13 +142,22 @@ class DatabaseUtil {
 
     void createMetaTable() {
         // create meta table if not exists
-        String sql = "CREATE TABLE IF NOT EXISTS fuzzyble_meta_data(table_name TEXT UNIQUE, populated integer, last_update INTEGER)";
+        String sql = "CREATE TABLE IF NOT EXISTS fuzzyble_meta_data(" +
+                "id INTEGER PRIMARY KEY, " +
+                "table_name VARCHAR(255) NOT NULL UNIQUE, " +
+                "populated INTEGER NOT NULL DEFAULT 0, " +
+                "last_update INTEGER" +
+                ");";
         syncDatabase.onExecute(sql, null);
     }
 
     private String createTableQuery(FuzzyColumn column) {
         if (column instanceof ColumnTrigrams) {
-            return "CREATE TABLE IF NOT EXISTS " + column.getFuzzyTableName() + " (trigram TEXT, word TEXT, PRIMARY KEY (trigram, word))";
+            return "CREATE TABLE IF NOT EXISTS " + column.getFuzzyTableName() + "(" +
+                    "trigram VARCHAR(10) NOT NULL, " +
+                    "word VARCHAR(255) NOT NULL, " +
+                    "PRIMARY KEY(trigram, word)" +
+                    ")";
         } else {
             return "CREATE TABLE IF NOT EXISTS " + column.getFuzzyTableName() + "(word TEXT, len INTEGER)";
 
