@@ -4,7 +4,6 @@
   <component name="GradleSettings">
     <option name="linkedExternalProjectsSettings">
       <GradleProjectSettings>
-        <option name="testRunner" value="GRADLE" />
         <option name="externalProjectPath" value="$PROJECT_DIR$" />
         <option name="gradleHome" value="" />
         <option name="gradleJvm" value="jbr-17" />
@@ -12,6 +11,14 @@
           <set>
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/fuzzybleJava" />
+          </set>
+        </option>
+      </GradleProjectSettings>
+      <GradleProjectSettings>
+        <option name="externalProjectPath" value="$PROJECT_DIR$/dbCreator" />
+        <option name="modules">
+          <set>
+            <option value="$PROJECT_DIR$/dbCreator" />
           </set>
         </option>
       </GradleProjectSettings>
