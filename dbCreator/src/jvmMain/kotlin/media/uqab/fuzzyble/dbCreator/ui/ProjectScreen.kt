@@ -36,7 +36,6 @@ import media.uqab.fuzzyble.dbCreator.model.Project
 import media.uqab.fuzzyble.dbCreator.usecase.CreateFuzzyTable
 import media.uqab.fuzzyble.dbCreator.usecase.GetDatabase
 import media.uqab.fuzzyble.dbCreator.usecase.SaveProject
-import media.uqab.fuzzybleJava.ColumnTrigrams
 import media.uqab.fuzzybleJava.ColumnWordLen
 import media.uqab.fuzzybleJava.FuzzyCursor
 import kotlin.io.path.Path
@@ -60,8 +59,8 @@ class ProjectScreen(project: Project) : Screen {
 
     private var searchJob: Job? = null
     private var searching by mutableStateOf(false)
+    private var matchAllWords by mutableStateOf(false)
     private var searchText by mutableStateOf("")
-    private val suggestions = mutableListOf<String>()
     private val tableItems = mutableStateListOf<AnnotatedString>()
 
     @Composable
@@ -342,18 +341,21 @@ class ProjectScreen(project: Project) : Screen {
                 }
             }
 
-            HorizontalScrollbar(adapter = ScrollbarAdapter(horizontalScrollState), modifier = Modifier.align(Alignment.BottomStart))
+            HorizontalScrollbar(
+                adapter = ScrollbarAdapter(horizontalScrollState),
+                modifier = Modifier.align(Alignment.BottomStart)
+            )
             VerticalScrollbar(adapter = ScrollbarAdapter(lazyListState), modifier = Modifier.align(Alignment.TopEnd))
         }
     }
 
     @Composable
     private fun SearchBar(modifier: Modifier) {
-        LaunchedEffect(searchText) {
+        LaunchedEffect(searchText, matchAllWords) {
             searchJob?.cancel()
             searchJob = launch(Dispatchers.IO) {
                 tableItems.clear()
-                tableItems.addAll(getItems(searchText))
+                tableItems.addAll(getItems(searchText, matchAllWords))
             }
         }
 
@@ -366,9 +368,22 @@ class ProjectScreen(project: Project) : Screen {
             modifier = modifier,
             trailingIcon = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("found ${tableItems.size} items", modifier = Modifier.padding(end = 12.dp))
+
                     if (searching) {
                         CircularProgressIndicator(Modifier.size(24.dp))
                     }
+
+                    Switch(matchAllWords, onCheckedChange = { matchAllWords = it })
+                    TextButton(
+                        onClick = {
+                            matchAllWords = !matchAllWords
+                        },
+                        content = {
+                            Text("Match All")
+                        },
+                    )
+
                     Icon(Icons.TwoTone.Search, null)
                 }
             }
@@ -487,34 +502,95 @@ class ProjectScreen(project: Project) : Screen {
         }
     }
 
-    private suspend fun getItems(search: String): List<AnnotatedString> {
+    private suspend fun getItems(
+        search: String,
+        matchAllWords: Boolean = false
+    ): List<AnnotatedString> {
         searching = true
         val db = GetDatabase(srcDb)
 
         val allItems = mutableListOf<AnnotatedString>()
         allItems.addAll(columns.map { getHighlighted(it, emptyList()) })
-        println("getItems called")
         try {
+            val suggestions = hashMapOf<String, List<String>>()
+
             val t = tables[selectedTable]
-            val items = if (search.isBlank() || search.length < 3) {
+            val c = columns[selectedColumn]
+
+            val match = if (search.isBlank()) {
                 db.getFirst100Row(t)
+            } else if (search.length < 3) {
+                // don't make fuzzy search for these words, it won't give good result
+                suggestions[search] = listOf(search)
+                db.searchItems(t, c, search)
             } else {
-                val c = columns[selectedColumn]
-                val fc = ColumnTrigrams(t, c)
-                val suggestion = FuzzyCursor(db).getFuzzyWords(fc, search)
-                suggestions.clear()
-                suggestions.addAll(suggestion)
+                val fc = ColumnWordLen(t, c)
+                val cursor = FuzzyCursor(db)
+
+                search.split(" ").forEach { word ->
+                    if (word.length > 2) {
+                        cursor.getFuzzyWords(fc, word).let {
+                            suggestions[word] = it.toList()
+                        }
+                    } else {
+                        // when searched word is less than 2 char,
+                        // fuzzy match provides inaccurate result
+                        suggestions[word] = listOf(word)
+                    }
+                }
+
                 println("suggestions $search --> $suggestions")
 
-                val match = mutableListOf<String>()
-                suggestions.forEach { s ->
-                    val a = db.searchItems(t, c, s)
-                    match.addAll(a)
+                val matchedRow = mutableListOf<String>()
+
+                if (matchAllWords) {
+                    // matching rows
+                    var m = mutableListOf<String>()
+
+                    for (key in suggestions.keys) {
+                        val ws = suggestions[key] ?: emptyList()
+
+                        // if previous match contains any of these words or not
+                        // if not, break the loop and return empty list
+                        if (m.isNotEmpty()) {
+                            m = m.filter { row ->
+                                ws.any { row.contains(it) }
+                            }.toMutableList()
+
+                            // no match, break the search
+                            if (m.isEmpty()) break
+                        }
+
+                        // search for each word's suggestions and add to the existing list
+                        for (s in ws) {
+                            m.addAll(db.searchItems(t, c, s))
+                        }
+
+                        // since we want to match all words,
+                        // zero result for any word's suggestion will
+                        // ultimately return zero result
+                        if (m.isEmpty()) {
+                            m.clear()
+                            break
+                        }
+                    }
+
+                    matchedRow.addAll(m)
+                } else {
+                    // include match for any of the suggestions
+                    suggestions.values.flatten().forEach { s ->
+                        val a = db.searchItems(t, c, s)         // get rows from source db
+                        matchedRow.addAll(a)
+                    }
                 }
-                match
-            }.map { it.split(Database.SEPARATOR) }
-                .flatten()
-                .map { getHighlighted(it, suggestions) }
+                matchedRow
+            }
+
+            val items = match.map {             // List<RowData> joined columns of row
+                it.split(Database.SEPARATOR)    // List<Row<Column>>
+            }.flatten().map {           // List<Column>
+                getHighlighted(it, suggestions.values.flatten())
+            }
 
             allItems.addAll(items)
         } catch (ignored: Exception) {
@@ -531,15 +607,16 @@ class ProjectScreen(project: Project) : Screen {
 
         return buildAnnotatedString {
             append(text)
-            suggestions.forEach {  sug ->
+            suggestions.forEach { sug ->
                 try {
                     val startIndex = text.indexOf(sug)
                     if (startIndex >= 0) {
                         val endIndex = startIndex + sug.length
-                        println("$sug $startIndex $endIndex")
                         addStyle(style = SpanStyle(background = Color.Yellow), start = startIndex, end = endIndex)
                     }
-                } catch (e: Exception) { }
+                } catch (ignored: Exception) {
+
+                }
             }
         }
     }
