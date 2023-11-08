@@ -1,20 +1,22 @@
 package media.uqab.fuzzybleJava;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Internal class to manage fuzzy tables
  *
  * @author gitHub/fCat97
  */
-@Deprecated
-class DatabaseUtil {
+class DatabaseUtil2 {
     private final Fuzzyble sourceDatabase;
     private final Fuzzyble syncDatabase;
+    private final Strategy strategy;
 
-    DatabaseUtil(Fuzzyble sourceDatabase, Fuzzyble syncDatabase) {
+    DatabaseUtil2(Fuzzyble sourceDatabase, Fuzzyble syncDatabase, Strategy strategy) {
         this.sourceDatabase = sourceDatabase;
         this.syncDatabase = syncDatabase;
+        this.strategy = strategy;
     }
 
     /**
@@ -23,9 +25,9 @@ class DatabaseUtil {
      * @param deletePrevious if true, delete the previous table
      */
     void createTable(FuzzyColumn column, boolean deletePrevious) throws IOException {
-        if (deletePrevious) syncDatabase.onExecute(dropTable(column), null);
+        if (deletePrevious) strategy.delete(syncDatabase, column);
 
-        syncDatabase.onExecute(createTableQuery(column), null);
+        strategy.create(syncDatabase, column);
 
         // if not already exists add the entity
         createMetaTable();
@@ -36,24 +38,14 @@ class DatabaseUtil {
      * Populate with data for specified column
      * @param column {@link FuzzyColumn} on which fuzzy search will be performed
      * @param force use the previously populated table if `false`. If `true` or not populated with data
-     *             populate it. This won't delete the previous table; to do so, use {@linkplain DatabaseUtil#createTable}
+     *             populate it. This won't delete the previous table; to do so, use {@linkplain DatabaseUtil2#createTable}
      * @throws IOException thrown if error occur.
      */
     void populateTable(FuzzyColumn column, boolean force) throws IOException {
         // if data exists(populated) or not forced, return
         if (isPopulated(column) && !force) return;
 
-        // get text of that columns
-        SqlCursor textCursor = sourceDatabase.onQuery(getDataQuery(column));
-        if (textCursor == null) return;
-
-        // process, filter and insert words
-        while (textCursor.moveToNext()) {
-            String text = textCursor.getString(0);
-            addToFuzzySearch(column, text);
-        }
-
-        textCursor.close();
+        strategy.populate(sourceDatabase, syncDatabase, column);
 
         // when done, mark as populated
         markPopulated(column, true);
@@ -65,33 +57,7 @@ class DatabaseUtil {
      * @param text {@linkplain String} to process and insert.
      */
     void addToFuzzySearch(FuzzyColumn column, String text) {
-        if (column instanceof ColumnTrigrams) {
-            String query = getTrigramInsertQuery(column);
-
-            for (String word: TextHelper.splitAndFilterText(text)) {
-                for (String trigram: TextHelper.splitAndGetTrigrams(word)) {
-                    try {
-                        String[] args = new String[]{trigram, word};
-                        syncDatabase.onExecute(query, args);
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-        } else {
-            String query = getUniqueInsertQuery(column);
-
-            // insert into (word,len) table
-            for(String w: TextHelper.splitAndFilterText(text)) {
-                try {
-                    String l = String.valueOf(w.length());
-                    String[] args = new String[]{w, l, w, w, l, w, w};
-                    syncDatabase.onExecute(query, args);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-        }
+        strategy.insert(syncDatabase, column, text);
     }
 
     boolean isFuzzyEnabled(FuzzyColumn column) throws IOException {
@@ -141,7 +107,12 @@ class DatabaseUtil {
         syncDatabase.onExecute(markPopulatedSql, args);
     }
 
-    void createMetaTable() {
+    String[] getWordSuggestion(FuzzyColumn column, String word) {
+        List<String> suggestion = strategy.getSuggestions(syncDatabase, column, word);
+        return suggestion.toArray(new String[]{});
+    }
+
+    private void createMetaTable() {
         // create meta table if not exists
         String sql = "CREATE TABLE IF NOT EXISTS fuzzyble_meta_data(" +
                 "id INTEGER PRIMARY KEY, " +
@@ -150,39 +121,5 @@ class DatabaseUtil {
                 "last_update INTEGER" +
                 ");";
         syncDatabase.onExecute(sql, null);
-    }
-
-    private String createTableQuery(FuzzyColumn column) {
-        if (column instanceof ColumnTrigrams) {
-            return "CREATE TABLE IF NOT EXISTS " + column.getFuzzyTableName() + "(" +
-                    "trigram VARCHAR(10) NOT NULL, " +
-                    "word VARCHAR(255) NOT NULL, " +
-                    "PRIMARY KEY(trigram, word)" +
-                    ")";
-        } else {
-            return "CREATE TABLE IF NOT EXISTS " + column.getFuzzyTableName() + "(word TEXT, len INTEGER)";
-
-        }
-    }
-
-    private String dropTable(FuzzyColumn column) {
-        return "DROP TABLE IF EXISTS " + column.getFuzzyTableName();
-    }
-
-    private String getDataQuery(FuzzyColumn column) {
-        return "SELECT " + column.column + " FROM " + column.table;
-    }
-
-    private String getUniqueInsertQuery(FuzzyColumn column) {
-        final String fuzzyTable = column.getFuzzyTableName();
-
-        return "INSERT INTO " + fuzzyTable + " (word, len) " +
-                "SELECT ?, ? " +
-                "WHERE NOT EXISTS (SELECT 1 FROM " + fuzzyTable + " WHERE word LIKE ? || '%' OR ? LIKE word || '%') " +
-                "OR ? < (SELECT min(len) FROM " + fuzzyTable + " WHERE word LIKE ? || '%' OR ? LIKE word || '%')";
-    }
-
-    private String getTrigramInsertQuery(FuzzyColumn column) {
-        return "INSERT OR IGNORE INTO " + column.getFuzzyTableName() + " (trigram, word) VALUES (?, ?)";
     }
 }

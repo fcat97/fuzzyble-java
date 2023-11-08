@@ -9,5 +9,6 @@ public class FuzzyUtilWithWordLenTest extends FuzzyUtilsTest {
     static void setup() throws SQLException, ClassNotFoundException {
         FuzzyUtilsTest.setup();
         mFuzzyColumn = new ColumnWordLen("tab1", "c1");
+        mStrategy = new WordLen(mSimilarity);
     }
 }

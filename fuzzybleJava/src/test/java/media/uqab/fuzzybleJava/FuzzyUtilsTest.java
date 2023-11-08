@@ -19,6 +19,7 @@ class FuzzyUtilsTest {
     protected static FuzzyColumn mFuzzyColumn;
     protected static Connection mMutConnection, mImMutConnection;
     protected static Similarity mSimilarity;
+    protected static Strategy mStrategy;
 
     private static ArrayList<String> demoText;
 
@@ -29,8 +30,9 @@ class FuzzyUtilsTest {
         mMutConnection = DriverManager.getConnection("jdbc:sqlite::memory:");
         mImMutConnection = DriverManager.getConnection("jdbc:sqlite::memory:");
 
-        mFuzzyColumn = new ColumnTrigrams("tab1", "c1");
         mSimilarity = new Levenshtein();
+        mFuzzyColumn = new ColumnTrigrams("tab1", "c1");
+        mStrategy = new Trigram(mSimilarity);
 
         demoText = new ArrayList<>();
         demoText.add("Fumarole minerals (or fumarolic minerals) are minerals which are deposited by fumarole exhalations. They form when gases and compounds desublimate or precipitate out of condensates, forming mineral deposits. They are mostly associated with volcanoes (as volcanic sublimate or fumarolic sublimate) following deposition from volcanic gas during an eruption or discharge from a volcanic vent or fumarole,[1] but have been encountered on burning coal deposits as well. They can be black or multicoloured and are often unstable upon exposure to the atmosphere.");
@@ -40,9 +42,9 @@ class FuzzyUtilsTest {
         Fuzzyble mImMutableDb = new ImmutableDatabase(mImMutConnection);
 
 //        mCursor = new FuzzyCursor(mMutableDb);
-//        mCursor = new FuzzyCursor(mMutableDb, mSimilarity);
+//        mCursor = new FuzzyCursor(mMutableDb, mStrategy);
 //        mCursor = new FuzzyCursor(mImMutableDb, mMutableDb);
-        mCursor = new FuzzyCursor(mImMutableDb, mMutableDb, mSimilarity);
+        mCursor = new FuzzyCursor(mImMutableDb, mMutableDb, mStrategy);
     }
 
     @AfterAll

@@ -6,58 +6,56 @@ import java.io.IOException;
  * Class to get manipulate fuzzy tables.
  *
  * <p>
+ * <b>Usage</b>
+ * <hr>
  * To make a column fuzzy searchable (fuzzyble),
  * <ul>
  * <li>call {@link FuzzyCursor#createFuzzyble} to create a fuzzy searchable column.</li>
  * <li>call {@linkplain FuzzyCursor#populate} to insert data automatically from source database
  * to fuzzy database </li>
  * <li>call {@linkplain FuzzyCursor#addToFuzzySearch} to manually add data into fuzzy search</li>
- *</ul>
- * <p>
+ * </ul>
+ *
+ * <br>
  * <b>Remember to call on background thread or it may cause ANR.</b>
+ *
+ * <p></p>
+ * <b>Terminology</b>
+ * <hr>
+ *
+ * <b>Immutable Database</b>: The database which doesn't allow to modify externally
+ * or require special mechanism to do so. For example, in android Room database
+ * do not support runtime creation of tables.
+ * <br>
+ *
+ * <b>Mutable Database</b>:
+ * Supporting database if the source database is immutable.
+ * <br>
+ * i.e. modification on source database is not permissible. So this database
+ * will be used instead to create necessary tables and hold required data.
  *
  * @author github/fCat97
  */
 public class FuzzyCursor {
-    /**
-     * Main database on which actual search will be performed.
-     */
-    private final Fuzzyble sourceDatabase;
-
-    /**
-     * Support database if the {@linkplain FuzzyCursor#sourceDatabase} is immutable.
-     *
-     * <p>
-     * i.e. modification on source database is not permissible. So this database
-     * is used to create fuzzy words tables and populated with necessary data.
-     * Fuzzy suggestion is also provided from this database.
-     *
-     * <p>
-     * But if the {@linkplain FuzzyCursor#sourceDatabase} is mutable, this is the
-     * same object i.e. the {@linkplain FuzzyCursor#sourceDatabase}.
-     */
-    private final Fuzzyble syncDatabase;
-
-    private final DatabaseUtil databaseUtil;
-
-    private final FuzzyUtils fuzzyUtils;
+    private final DatabaseUtil2 databaseUtil;
 
 
     /**
      * Constructor for {@link FuzzyCursor}.
-     * @param database Database that inherited {@link Fuzzyble} interface.
+     * @param database Database that inherited {@link Fuzzyble} interface and also mutable for creating tables.
      */
     public FuzzyCursor(Fuzzyble database) {
-        this(database, new Levenshtein());
+        this(database, new Trigram());
     }
 
     /**
      * Constructor for {@linkplain FuzzyCursor}
-     * @param database a mutable database to store fuzzy data
-     * @param similarity custom {@linkplain Similarity} checker.
+     * @param database a mutable database where creating tables and inserting data is permitted.
+     * @param strategy {@link Strategy} method to perform fuzzy operations.
+     * Two default implementations {@linkplain Trigram} &amp; {@linkplain WordLen} provided.
      */
-    public FuzzyCursor(Fuzzyble database, Similarity similarity) {
-        this(database, database, similarity);
+    public FuzzyCursor(Fuzzyble database, Strategy strategy) {
+        this(database, database, strategy);
     }
 
     /**
@@ -74,7 +72,7 @@ public class FuzzyCursor {
      *
      */
     public FuzzyCursor(Fuzzyble immutableDatabase, Fuzzyble mutableDatabase) {
-        this(immutableDatabase, mutableDatabase, new Levenshtein());
+        this(immutableDatabase, mutableDatabase, new Trigram());
     }
 
     /**
@@ -87,14 +85,12 @@ public class FuzzyCursor {
      * into a separate database.
      *
      * @param immutableDatabase {@link Fuzzyble} database but modification is not allowed
-     * @param mutableDatabase {@link Fuzzyble} database to store fuzzy words
-     * @param similarity {@link Similarity} method to check similarity
+     * @param mutableDatabase {@link Fuzzyble} database to store fuzzy words.
+     * @param strategy {@link Strategy} method to perform fuzzy operations.
+     * Two default implementations {@linkplain Trigram} &amp; {@linkplain WordLen} provided.
      */
-    public FuzzyCursor(Fuzzyble immutableDatabase, Fuzzyble mutableDatabase, Similarity similarity) {
-        this.sourceDatabase = immutableDatabase;
-        this.syncDatabase = mutableDatabase;
-        this.databaseUtil = new DatabaseUtil(sourceDatabase, syncDatabase);
-        this.fuzzyUtils = new FuzzyUtils(similarity);
+    public FuzzyCursor(Fuzzyble immutableDatabase, Fuzzyble mutableDatabase, Strategy strategy) {
+        this.databaseUtil = new DatabaseUtil2(immutableDatabase, mutableDatabase, strategy);
     }
 
     /**
@@ -183,7 +179,7 @@ public class FuzzyCursor {
      */
     public String[] getFuzzyWords(FuzzyColumn column, String word) throws IOException, RuntimeException {
         throwIfNotFuzzyble(column);
-        return fuzzyUtils.getWordSuggestions(syncDatabase, column, word);
+        return databaseUtil.getWordSuggestion(column, word);
     }
 
     /**

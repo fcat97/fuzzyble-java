@@ -20,7 +20,7 @@ dependencies {
 
 def groupId = 'media.uqab.fuzzyble'
 def artifactId = 'fuzzybleJava'
-def artifactVersion = '0.5.1'
+def artifactVersion = '0.6.1'
 
 task createJarPropertiesFile(type: Copy) {
     from {
