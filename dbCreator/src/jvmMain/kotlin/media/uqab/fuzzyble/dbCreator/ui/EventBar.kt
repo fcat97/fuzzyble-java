@@ -21,7 +21,7 @@ sealed class Event(val msg: String) {
 fun EventBar(modifier: Modifier, event: Event?, onConsumed: () -> Unit) {
     LaunchedEffect(event) {
         if (event == null) return@LaunchedEffect
-        delay(2000)
+        delay(5000)
         onConsumed()
     }
 

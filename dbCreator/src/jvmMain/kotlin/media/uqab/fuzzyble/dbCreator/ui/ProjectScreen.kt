@@ -8,7 +8,10 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.twotone.CheckCircle
 import androidx.compose.material.icons.twotone.Search
 import androidx.compose.material.icons.twotone.Warning
@@ -35,8 +38,13 @@ import media.uqab.fuzzyble.dbCreator.usecase.CreateFuzzyTable
 import media.uqab.fuzzyble.dbCreator.usecase.GetDatabase
 import media.uqab.fuzzyble.dbCreator.usecase.SaveProject
 import media.uqab.fuzzyble.dbCreator.utils.AsyncImage
+import media.uqab.fuzzybleJava.ColumnTrigrams
 import media.uqab.fuzzybleJava.ColumnWordLen
+import media.uqab.fuzzybleJava.FuzzyColumn
 import media.uqab.fuzzybleJava.FuzzyCursor
+import media.uqab.fuzzybleJava.Strategy
+import media.uqab.fuzzybleJava.Trigram
+import media.uqab.fuzzybleJava.WordLen
 import kotlin.io.path.Path
 import kotlin.io.path.extension
 
@@ -63,6 +71,8 @@ class ProjectScreen(project: Project) : Screen {
     private var tableItems by mutableStateOf<List<AnnotatedString>>(emptyList())
 
     private var isFuzzyble by mutableStateOf(false)
+    private val fuzzyMethods = listOf("Trigram (recommended)", "WordLen")
+    private var selectedMethod by mutableStateOf(0)
 
     @Composable
     override fun Content() = ProjectHomeContent()
@@ -118,7 +128,8 @@ class ProjectScreen(project: Project) : Screen {
             if (isMobileScreen) {
                 Column(
                     modifier = Modifier.fillMaxSize().padding(30.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
                     ProjectControlFields(Modifier.fillMaxWidth())
 
@@ -166,7 +177,7 @@ class ProjectScreen(project: Project) : Screen {
             EventBar(modifier = Modifier.fillMaxWidth(), event) { event = null }
 
             AnimatedVisibility(isOperationRunning) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colors.secondary)
             }
         }
     }
@@ -267,8 +278,9 @@ class ProjectScreen(project: Project) : Screen {
         val coroutine = rememberCoroutineScope()
         var show by remember { mutableStateOf(false) }
         var isPopulated by remember { mutableStateOf(false) }
+        var showMethodDropDown by remember { mutableStateOf(false) }
 
-        LaunchedEffect(srcDb, syncDb, selectedTable, selectedColumn) {
+        LaunchedEffect(srcDb, syncDb, selectedTable, selectedColumn, selectedMethod) {
             show = try {
                 if (srcDb.isBlank()) false
                 else if (syncDb.isBlank()) false
@@ -280,51 +292,60 @@ class ProjectScreen(project: Project) : Screen {
             }
 
             try {
-                val db = GetDatabase(srcDb)
-                val t = tables[selectedTable]
-                val c = columns[selectedColumn]
-                val columnWordLen = ColumnWordLen(t, c)
-                val cursor = FuzzyCursor(db)
+                val column = getFuzzyColumn()
+                val cursor = getCursor()
 
-                isFuzzyble = cursor.isFuzzyble(columnWordLen)
-                isPopulated = cursor.isPopulated(columnWordLen)
+                isFuzzyble = cursor.isFuzzyble(column)
+                isPopulated = cursor.isPopulated(column)
             } catch (ignore: Exception) {
 
             }
         }
 
         AnimatedVisibility(show) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
-            ) {
-                Icon(
-                    imageVector = if (isFuzzyble) Icons.TwoTone.CheckCircle else Icons.TwoTone.Warning,
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp),
-                    tint = if (isFuzzyble) Color.Green else Color.LightGray
+            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                DropDownSelector(
+                    modifier = Modifier.fillMaxWidth(),
+                    label = "Select Fuzzy Method",
+                    items = fuzzyMethods,
+                    selected = selectedMethod,
+                    onSelect = { selectedMethod = it },
+                    expanded = showMethodDropDown,
+                    onDismiss = { showMethodDropDown = it }
                 )
 
-                Text("Fuzzyble Column")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Icon(
+                        imageVector = if (isFuzzyble) Icons.TwoTone.CheckCircle else Icons.TwoTone.Warning,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = if (isFuzzyble) Color.Green else Color.LightGray
+                    )
 
+                    Text("Fuzzyble Column")
 
-                Icon(
-                    imageVector = if (isPopulated) Icons.TwoTone.CheckCircle else Icons.TwoTone.Warning,
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp),
-                    tint = if (isPopulated) Color.Green else Color.LightGray
-                )
+                    Icon(
+                        imageVector = if (isPopulated) Icons.TwoTone.CheckCircle else Icons.TwoTone.Warning,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = if (isPopulated) Color.Green else Color.LightGray
+                    )
 
-                Text("Column Populated")
+                    Text("Column Populated")
 
-                TextButton(
-                    onClick = {
-                        coroutine.launch { enableFuzzySearch() }
-                    },
-                    content = {
-                        Text("Enable Fuzzy Search")
-                    }
-                )
+                    TextButton(
+                        onClick = {
+                            coroutine.launch { enableFuzzySearch() }
+                        },
+                        content = {
+                            Text("Enable Fuzzy Search")
+                        }
+                    )
+                }
             }
         }
     }
@@ -554,8 +575,8 @@ class ProjectScreen(project: Project) : Screen {
                 suggestions[search] = listOf(search)
                 db.searchItems(t, c, search)
             } else {
-                val fc = ColumnWordLen(t, c)
-                val cursor = FuzzyCursor(db)
+                val fc = getFuzzyColumn()
+                val cursor = getCursor()
 
                 search.split(" ").forEach { word ->
                     if (word.length > 2) {
@@ -666,10 +687,8 @@ class ProjectScreen(project: Project) : Screen {
         try {
             event = Event.Success("Enabling Fuzzy Search")
             isOperationRunning = true
-            val cur = FuzzyCursor(GetDatabase(srcDb))
-            val t = tables[selectedTable]
-            val c = columns[selectedColumn]
-            val column = ColumnWordLen(t, c)
+            val cur = getCursor()
+            val column = getFuzzyColumn()
             CreateFuzzyTable(cur, column, true)
             event = Event.Success("Fuzzy Search Enabled")
         } catch (ignore: Exception) {
@@ -677,5 +696,27 @@ class ProjectScreen(project: Project) : Screen {
             isOperationRunning = false
         }
 
+    }
+
+    private val strategy: Strategy
+        get() = if (fuzzyMethods[selectedMethod].contains("trigram", ignoreCase = true)) {
+            Trigram()
+        } else {
+            WordLen()
+        }
+
+    private suspend fun getCursor(): FuzzyCursor {
+        val db = GetDatabase(srcDb)
+        return FuzzyCursor(db, strategy)
+    }
+
+    private fun getFuzzyColumn(): FuzzyColumn {
+        val t = tables[selectedTable]
+        val c = columns[selectedColumn]
+        return if (strategy is Trigram) {
+            ColumnTrigrams(t, c)
+        } else {
+            ColumnWordLen(t, c)
+        }
     }
 }
