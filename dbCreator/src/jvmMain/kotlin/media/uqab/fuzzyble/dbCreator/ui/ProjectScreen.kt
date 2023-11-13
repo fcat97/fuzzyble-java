@@ -17,10 +17,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.loadImageBitmap
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -36,7 +34,6 @@ import media.uqab.fuzzyble.dbCreator.model.Project
 import media.uqab.fuzzyble.dbCreator.usecase.CreateFuzzyTable
 import media.uqab.fuzzyble.dbCreator.usecase.GetDatabase
 import media.uqab.fuzzyble.dbCreator.usecase.SaveProject
-import media.uqab.fuzzyble.dbCreator.usecase.SaveRecentProject
 import media.uqab.fuzzyble.dbCreator.utils.AsyncImage
 import media.uqab.fuzzybleJava.ColumnWordLen
 import media.uqab.fuzzybleJava.FuzzyCursor
@@ -63,7 +60,9 @@ class ProjectScreen(project: Project) : Screen {
     private var searching by mutableStateOf(false)
     private var matchAllWords by mutableStateOf(false)
     private var searchText by mutableStateOf("")
-    private val tableItems = mutableStateListOf<AnnotatedString>()
+    private var tableItems by mutableStateOf<List<AnnotatedString>>(emptyList())
+
+    private var isFuzzyble by mutableStateOf(false)
 
     @Composable
     override fun Content() = ProjectHomeContent()
@@ -81,21 +80,25 @@ class ProjectScreen(project: Project) : Screen {
         // show dialog based on intent
         Dialogs(dialogIntent) { dialogIntent = it }
 
+        var screenWidth by remember { mutableStateOf(100) }
+        val isMobileScreen by remember { derivedStateOf { screenWidth < 1080 } }
+
+        LaunchedEffect(Unit) {
+            val db = GetDatabase(srcDb)
+            db.getTables().forEach {
+                tables.add(it)
+            }
+
+            if (tables.isNotEmpty()) {
+                onSelectTable(0)
+            }
+        }
+
         Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text(name) },
-                    navigationIcon = {
-                        IconButton(
-                            onClick = {
-                                ScreenManager.peek().pop()
-                            },
-                        ) {
-                            Icon(imageVector = Icons.Default.ArrowBack, null)
-                        }
-                    },
-                )
+            modifier = Modifier.onGloballyPositioned {
+                screenWidth = it.size.width
             },
+            topBar = { TitleBar() },
             floatingActionButton = {
                 FloatingActionButton(
                     onClick = {
@@ -112,41 +115,89 @@ class ProjectScreen(project: Project) : Screen {
                 }
             }
         ) {
-            Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-                EventBar(modifier = Modifier.fillMaxWidth(), event) { event = null }
+            if (isMobileScreen) {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(30.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    ProjectControlFields(Modifier.fillMaxWidth())
 
-                AnimatedVisibility(isOperationRunning) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    AnimatedVisibility(isFuzzyble) {
+                        SearchBar(Modifier.fillMaxWidth())
+                    }
+
+                    DataTable(Modifier.fillMaxWidth())
                 }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxSize().padding(30.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    ProjectControlFields(Modifier.fillMaxWidth(0.4f))
 
-                TextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    modifier = Modifier.fillMaxWidth(0.8f)
-                        .padding(top = 40.dp),
+                    Column {
+                        AnimatedVisibility(isFuzzyble) {
+                            SearchBar(Modifier.fillMaxWidth())
+                        }
 
-                    label = { Text("Project Name") }
-                )
-
-                Spacer(Modifier.height(20.dp))
-
-                DatabaseLocation()
-
-                Spacer(Modifier.height(20.dp))
-
-                DatabaseColumnSelection()
-
-                Spacer(Modifier.height(20.dp))
-
-                TableDetails()
+                        DataTable(Modifier.fillMaxWidth())
+                    }
+                }
             }
+        }
+    }
+
+    @Composable
+    private fun TitleBar() {
+        Column {
+            TopAppBar(
+                title = { Text(name) },
+                navigationIcon = {
+                    IconButton(
+                        onClick = {
+                            ScreenManager.peek().pop()
+                        },
+                    ) {
+                        Icon(imageVector = Icons.Default.ArrowBack, null)
+                    }
+                },
+            )
+
+            EventBar(modifier = Modifier.fillMaxWidth(), event) { event = null }
+
+            AnimatedVisibility(isOperationRunning) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+        }
+    }
+
+    @Composable
+    private fun ProjectControlFields(modifier: Modifier) {
+        Column(
+            modifier = modifier,
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            TextField(
+                value = name,
+                onValueChange = { name = it },
+                modifier = Modifier.fillMaxWidth(),
+
+                label = { Text("Project Name") }
+            )
+
+            DatabaseLocation()
+
+            DatabaseColumnSelection()
+
+            TableInfo()
         }
     }
 
     @Composable
     private fun DatabaseLocation() {
         Row(
-            modifier = Modifier.fillMaxWidth(0.8f),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             TextField(
@@ -181,34 +232,12 @@ class ProjectScreen(project: Project) : Screen {
 
     @Composable
     private fun DatabaseColumnSelection() {
+        val coroutine = rememberCoroutineScope()
         var expandTableDropDown by remember { mutableStateOf(false) }
         var expandColumnDropDown by remember { mutableStateOf(false) }
 
-        LaunchedEffect(Unit) {
-            val db = GetDatabase(srcDb)
-            db.getTables().forEach {
-                tables.add(it)
-            }
-            if (tables.isNotEmpty()) selectedTable = 0
-        }
-
-        LaunchedEffect(selectedTable) {
-            try {
-                // check if selection is correct or not
-                tables[selectedTable]
-
-                val db = GetDatabase(srcDb)
-                columns.clear()
-                db.getColumns(tables[selectedTable]).forEach {
-                    columns.add(it)
-                }
-                if (columns.isNotEmpty()) selectedColumn = 0
-            } catch (ignored: Exception) {
-            }
-        }
-
         Row(
-            modifier = Modifier.fillMaxWidth(0.8f),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             DropDownSelector(
@@ -216,7 +245,7 @@ class ProjectScreen(project: Project) : Screen {
                 label = "Source DB table",
                 items = tables,
                 selected = selectedTable,
-                onSelect = { selectedTable = it },
+                onSelect = { coroutine.launch { onSelectTable(it) } },
                 expanded = expandTableDropDown,
                 onDismiss = { expandTableDropDown = it }
             )
@@ -234,10 +263,9 @@ class ProjectScreen(project: Project) : Screen {
     }
 
     @Composable
-    private fun TableDetails() {
+    private fun TableInfo() {
         val coroutine = rememberCoroutineScope()
         var show by remember { mutableStateOf(false) }
-        var isFuzzyble by remember { mutableStateOf(false) }
         var isPopulated by remember { mutableStateOf(false) }
 
         LaunchedEffect(srcDb, syncDb, selectedTable, selectedColumn) {
@@ -266,67 +294,37 @@ class ProjectScreen(project: Project) : Screen {
         }
 
         AnimatedVisibility(show) {
-            Column {
-                Row(
-                    modifier = Modifier.fillMaxWidth(0.8f),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (isFuzzyble) {
-                            Icon(Icons.TwoTone.CheckCircle, null, modifier = Modifier.size(24.dp), tint = Color.Green)
-                        } else {
-                            Icon(Icons.TwoTone.Warning, null, modifier = Modifier.size(24.dp), tint = Color.LightGray)
-                        }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally)
+            ) {
+                Icon(
+                    imageVector = if (isFuzzyble) Icons.TwoTone.CheckCircle else Icons.TwoTone.Warning,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
+                    tint = if (isFuzzyble) Color.Green else Color.LightGray
+                )
 
-                        Text("Fuzzyble Column")
-                    }
+                Text("Fuzzyble Column")
 
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (isPopulated) {
-                            Icon(Icons.TwoTone.CheckCircle, null, modifier = Modifier.size(24.dp), tint = Color.Green)
-                        } else {
-                            Icon(Icons.TwoTone.Warning, null, modifier = Modifier.size(24.dp), tint = Color.LightGray)
-                        }
 
-                        Text("Column Populated")
-                    }
+                Icon(
+                    imageVector = if (isPopulated) Icons.TwoTone.CheckCircle else Icons.TwoTone.Warning,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
+                    tint = if (isPopulated) Color.Green else Color.LightGray
+                )
 
-                    TextButton(
-                        onClick = {
-                            coroutine.launch {
-                                try {
-                                    event = Event.Success("Enabling Fuzzy Search")
-                                    isOperationRunning = true
-                                    val cur = FuzzyCursor(GetDatabase(srcDb))
-                                    val t = tables[selectedTable]
-                                    val c = columns[selectedColumn]
-                                    val column = ColumnWordLen(t, c)
-                                    CreateFuzzyTable(cur, column, true)
-                                    event = Event.Success("Fuzzy Search Enabled")
-                                } catch (ignore: Exception) {
-                                } finally {
-                                    isOperationRunning = false
-                                }
+                Text("Column Populated")
 
-                            }
-                        },
-                    ) {
+                TextButton(
+                    onClick = {
+                        coroutine.launch { enableFuzzySearch() }
+                    },
+                    content = {
                         Text("Enable Fuzzy Search")
                     }
-                }
-
-                AnimatedVisibility(isFuzzyble) {
-                    SearchBar(Modifier.fillMaxWidth(0.8f))
-                }
-
-                DataTable(Modifier.fillMaxWidth(0.8f))
+                )
             }
         }
     }
@@ -335,19 +333,16 @@ class ProjectScreen(project: Project) : Screen {
     private fun DataTable(modifier: Modifier) {
         val horizontalScrollState = rememberScrollState()
         val lazyListState = rememberLazyListState()
+        var tableRows by remember { mutableStateOf<List<List<AnnotatedString>>>(emptyList()) }
 
-        LaunchedEffect(selectedTable) {
-            searchJob?.cancel()
-            searchJob = launch(Dispatchers.IO) {
-                tableItems.clear()
-                tableItems.addAll(getItems(""))
-            }
+        LaunchedEffect(tableItems) {
+            tableRows = if (columns.isEmpty()) emptyList() else tableItems.chunked(columns.size)
         }
 
-        Box(Modifier.fillMaxWidth(0.8f)) {
-            LazyColumn(modifier, state = lazyListState) {
-                itemsIndexed(items = tableItems.chunked(columns.size)) { rI, row ->
-                    Row(Modifier.horizontalScroll(horizontalScrollState)) {
+        Box(modifier) {
+            LazyColumn(Modifier.fillMaxSize().horizontalScroll(horizontalScrollState), state = lazyListState) {
+                itemsIndexed(items = tableRows) { rI, row ->
+                    Row {
                         row.forEach { item ->
                             Surface(color = if (rI % 2 == 0) Color.LightGray else Color.LightGray.copy(alpha = 0.6f)) {
                                 Text(item, modifier = Modifier.width(300.dp))
@@ -370,8 +365,7 @@ class ProjectScreen(project: Project) : Screen {
         LaunchedEffect(searchText, matchAllWords) {
             searchJob?.cancel()
             searchJob = launch(Dispatchers.IO) {
-                tableItems.clear()
-                tableItems.addAll(getItems(searchText, matchAllWords))
+                getItems(searchText, matchAllWords)
             }
         }
 
@@ -382,6 +376,9 @@ class ProjectScreen(project: Project) : Screen {
             },
             placeholder = { Text("Search") },
             modifier = modifier,
+            leadingIcon = {
+                Icon(Icons.TwoTone.Search, null)
+            },
             trailingIcon = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("found ${tableItems.size} items", modifier = Modifier.padding(end = 12.dp))
@@ -399,8 +396,6 @@ class ProjectScreen(project: Project) : Screen {
                             Text("Match All")
                         },
                     )
-
-                    Icon(Icons.TwoTone.Search, null)
                 }
             }
         )
@@ -518,15 +513,34 @@ class ProjectScreen(project: Project) : Screen {
         }
     }
 
+    private suspend fun onSelectTable(index: Int) {
+        try {
+            selectedTable = index
+            val db = GetDatabase(srcDb)
+            columns.clear()
+            db.getColumns(tables[selectedTable]).let {
+                columns.addAll(it)
+            }
+
+            if (columns.isNotEmpty()) {
+                selectedColumn = 0
+            }
+
+            getItems(searchText, matchAllWords)
+        } catch (ignored: Exception) {
+        }
+    }
+
     private suspend fun getItems(
         search: String,
         matchAllWords: Boolean = false
-    ): List<AnnotatedString> {
+    ) {
         searching = true
         val db = GetDatabase(srcDb)
 
         val allItems = mutableListOf<AnnotatedString>()
         allItems.addAll(columns.map { getHighlighted(it, emptyList()) })
+
         try {
             val suggestions = hashMapOf<String, List<String>>()
 
@@ -614,8 +628,7 @@ class ProjectScreen(project: Project) : Screen {
             searching = false
         }
 
-
-        return allItems
+        tableItems = allItems
     }
 
     private fun getHighlighted(text: String, suggestions: List<String>): AnnotatedString {
@@ -647,5 +660,22 @@ class ProjectScreen(project: Project) : Screen {
 
             SaveProject(update)
         }
+    }
+
+    private suspend fun enableFuzzySearch() {
+        try {
+            event = Event.Success("Enabling Fuzzy Search")
+            isOperationRunning = true
+            val cur = FuzzyCursor(GetDatabase(srcDb))
+            val t = tables[selectedTable]
+            val c = columns[selectedColumn]
+            val column = ColumnWordLen(t, c)
+            CreateFuzzyTable(cur, column, true)
+            event = Event.Success("Fuzzy Search Enabled")
+        } catch (ignore: Exception) {
+        } finally {
+            isOperationRunning = false
+        }
+
     }
 }
