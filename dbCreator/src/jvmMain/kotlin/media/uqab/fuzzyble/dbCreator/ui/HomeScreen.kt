@@ -4,13 +4,14 @@ import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.AlertDialog
-import androidx.compose.material.Icon
-import androidx.compose.material.Text
-import androidx.compose.material.TextButton
+import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,12 +22,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.darkrockstudios.libraries.mpfilepicker.DirectoryPicker
 import kotlinx.coroutines.launch
+import media.uqab.fuzzyble.dbCreator.model.Project
 import media.uqab.fuzzyble.dbCreator.usecase.CreateNewProject
 import media.uqab.fuzzyble.dbCreator.usecase.GetProjectFromPath
+import media.uqab.fuzzyble.dbCreator.usecase.GetRecentProjects
+import media.uqab.fuzzyble.dbCreator.usecase.SaveRecentProject
 
 
 class HomeScreen : Screen {
     private var dialogIntent by mutableStateOf<DialogIntent?>(null)
+    private var recentProjects by mutableStateOf<List<Project>>(emptyList())
 
     @Composable
     override fun Content() {
@@ -43,22 +48,29 @@ class HomeScreen : Screen {
     @Preview
     @Composable
     private fun HomeScreenContent() {
+        LaunchedEffect(Unit) {
+            recentProjects = GetRecentProjects()
+        }
+
         Dialogs(dialogIntent) { dialogIntent = it }
 
         // main contents
-        Box(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = "Welcome!",
                 modifier = Modifier.padding(top = 40.dp)
-                    .align(Alignment.TopCenter),
+                    .align(Alignment.CenterHorizontally),
                 fontSize = 40.sp,
             )
 
+            Spacer(modifier = Modifier.height(40.dp))
+
             Row(
-                modifier = Modifier.align(Alignment.Center),
+                modifier = Modifier.align(Alignment.CenterHorizontally),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
 
+                // open existing
                 Column(
                     modifier = Modifier.size(150.dp)
                         .clip(RoundedCornerShape(15))
@@ -72,6 +84,7 @@ class HomeScreen : Screen {
                     Text("Open Existing")
                 }
 
+                // new project
                 Column(
                     modifier = Modifier.size(150.dp)
                         .clip(RoundedCornerShape(15))
@@ -86,6 +99,11 @@ class HomeScreen : Screen {
                 }
             }
 
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Text("Recent Projects")
+            Divider(modifier = Modifier.fillMaxWidth(0.5f).height(1.dp))
+            RecentProjects(Modifier.fillMaxWidth(0.5f))
         }
     }
 
@@ -101,10 +119,11 @@ class HomeScreen : Screen {
                 if (project == null) {
                     onChangeIntent(DialogIntent.NO_PROJECT)
                 } else {
-                    ScreenManager.peek().push(ProjectScreen(project))
+                    openProject(project)
                 }
             }
         }
+
         fun createNewProject(projectDir: String?) {
             coroutine.launch {
                 if (projectDir == null) return@launch
@@ -113,24 +132,26 @@ class HomeScreen : Screen {
                 if (project == null) {
                     onChangeIntent(DialogIntent.FAILED_TO_CREATE_NEW)
                 } else {
-                    ScreenManager.peek().push(ProjectScreen(project))
+                    openProject(project)
                 }
             }
         }
 
-        when(dialogIntent) {
+        when (dialogIntent) {
             DialogIntent.OPEN_EXISTING_PROJECT -> {
                 DirectoryPicker(true, System.getProperty("user.home")) {
                     onChangeIntent(null)
                     openExistingProject(it)
                 }
             }
+
             DialogIntent.CREATE_NEW_PROJECT -> {
                 DirectoryPicker(true, System.getProperty("user.home")) {
                     onChangeIntent(null)
                     createNewProject(it)
                 }
             }
+
             DialogIntent.NO_PROJECT -> {
                 ProjectNotExist(
                     onCreateNew = {
@@ -141,6 +162,7 @@ class HomeScreen : Screen {
                     }
                 )
             }
+
             else -> {}
         }
     }
@@ -173,5 +195,40 @@ class HomeScreen : Screen {
                 }
             }
         )
+    }
+
+    @Composable
+    private fun RecentProjects(modifier: Modifier) {
+        val coroutine = rememberCoroutineScope()
+
+        LazyColumn(modifier) {
+            items(items = recentProjects) { project ->
+                Row(
+                    Modifier
+                        .padding(vertical = 8.dp)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(25))
+                        .clickable {
+                            coroutine.launch {
+                                openProject(project)
+                            }
+                        },
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(project.name)
+                        Text(project.projectDir)
+                    }
+
+                    Icon(imageVector = Icons.Default.ArrowForward, null)
+                }
+            }
+        }
+    }
+
+    private suspend fun openProject(project: Project) {
+        SaveRecentProject(project)
+        ScreenManager.peek().push(ProjectScreen(project))
     }
 }

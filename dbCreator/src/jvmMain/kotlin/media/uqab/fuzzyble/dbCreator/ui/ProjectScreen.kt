@@ -8,9 +8,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.twotone.CheckCircle
 import androidx.compose.material.icons.twotone.Search
 import androidx.compose.material.icons.twotone.Warning
@@ -19,8 +17,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.loadImageBitmap
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -36,6 +36,8 @@ import media.uqab.fuzzyble.dbCreator.model.Project
 import media.uqab.fuzzyble.dbCreator.usecase.CreateFuzzyTable
 import media.uqab.fuzzyble.dbCreator.usecase.GetDatabase
 import media.uqab.fuzzyble.dbCreator.usecase.SaveProject
+import media.uqab.fuzzyble.dbCreator.usecase.SaveRecentProject
+import media.uqab.fuzzyble.dbCreator.utils.AsyncImage
 import media.uqab.fuzzybleJava.ColumnWordLen
 import media.uqab.fuzzybleJava.FuzzyCursor
 import kotlin.io.path.Path
@@ -64,9 +66,7 @@ class ProjectScreen(project: Project) : Screen {
     private val tableItems = mutableStateListOf<AnnotatedString>()
 
     @Composable
-    override fun Content() {
-        ProjectHomeContent()
-    }
+    override fun Content() = ProjectHomeContent()
 
     private enum class DialogIntent {
         OpenSourceFilePicker,
@@ -78,9 +78,40 @@ class ProjectScreen(project: Project) : Screen {
     private fun ProjectHomeContent() {
         val coroutine = rememberCoroutineScope()
 
+        // show dialog based on intent
         Dialogs(dialogIntent) { dialogIntent = it }
 
-        Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text(name) },
+                    navigationIcon = {
+                        IconButton(
+                            onClick = {
+                                ScreenManager.peek().pop()
+                            },
+                        ) {
+                            Icon(imageVector = Icons.Default.ArrowBack, null)
+                        }
+                    },
+                )
+            },
+            floatingActionButton = {
+                FloatingActionButton(
+                    onClick = {
+                        coroutine.launch {
+                            event = if (saveChanges()) {
+                                Event.Success("Changes Saved")
+                            } else {
+                                Event.Failure("Failed to save changes")
+                            }
+                        }
+                    },
+                ) {
+                    AsyncImage("https://openclipart.org/image/800px/237989")
+                }
+            }
+        ) {
             Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
                 EventBar(modifier = Modifier.fillMaxWidth(), event) { event = null }
 
@@ -108,21 +139,6 @@ class ProjectScreen(project: Project) : Screen {
                 Spacer(Modifier.height(20.dp))
 
                 TableDetails()
-            }
-
-            Button(
-                onClick = {
-                    coroutine.launch {
-                        event = if (saveChanges()) {
-                            Event.Success("Changes Saved")
-                        } else {
-                            Event.Failure("Failed to save changes")
-                        }
-                    }
-                },
-                modifier = Modifier.align(Alignment.BottomCenter)
-            ) {
-                Text("Save Changes")
             }
         }
     }

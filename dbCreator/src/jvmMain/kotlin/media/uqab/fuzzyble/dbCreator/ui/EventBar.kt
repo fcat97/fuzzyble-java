@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
+import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -26,7 +27,7 @@ fun EventBar(modifier: Modifier, event: Event?, onConsumed: () -> Unit) {
 
     AnimatedVisibility(
         event != null,
-        modifier = modifier.background(color = if (event is Event.Failure) Color.Red else Color.Blue),
+        modifier = modifier.background(color = if (event is Event.Failure) Color.Red else MaterialTheme.colors.secondary),
     ) {
         Row(horizontalArrangement = Arrangement.Center) {
             Text(event?.msg ?: "", color = Color.White)
