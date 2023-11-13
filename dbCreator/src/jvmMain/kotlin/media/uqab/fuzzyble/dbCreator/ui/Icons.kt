@@ -1,6 +1,8 @@
 package media.uqab.fuzzyble.dbCreator.ui
 
 object Icons {
+    const val add = "https://cdn-icons-png.flaticon.com/24/10608/10608892.png"
+    const val open = "https://cdn-icons-png.flaticon.com/24/73/73581.png"
     const val upload = "https://cdn-icons-png.flaticon.com/24/3097/3097412.png"
     const val back = "https://cdn-icons-png.flaticon.com/24/2732/2732652.png"
     const val checkMark = "https://cdn-icons-png.flaticon.com/24/5290/5290119.png"

@@ -29,7 +29,7 @@ kotlin {
                 implementation("com.darkrockstudios:mpfilepicker:2.1.0")
                 implementation("com.google.code.gson:gson:2.10.1")
                 implementation("org.xerial:sqlite-jdbc:3.43.2.2")
-                implementation("media.uqab.fuzzyble:fuzzybleJava:0.6.2")
+                implementation("media.uqab.fuzzyble:fuzzybleJava:0.6.3")
             }
         }
         val jvmTest by getting
@@ -39,10 +39,23 @@ kotlin {
 compose.desktop {
     application {
         mainClass = "media.uqab.fuzzyble.dbCreator.MainKt"
+
+        // https://github.com/JetBrains/compose-multiplatform/issues/2668#issuecomment-1419178642
+        buildTypes.release {
+            proguard {
+                configurationFiles.from("compose-desktop.pro")
+            }
+        }
+
         nativeDistributions {
-            targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
+            modules("java.sql")
+
+            targetFormats(TargetFormat.Dmg, TargetFormat.Exe, TargetFormat.Deb)
             packageName = "dbCreator"
             packageVersion = "1.0.1"
+            windows {
+                iconFile.set(project.file("icon.ico"))
+            }
         }
     }
 }

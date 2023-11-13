@@ -62,9 +62,16 @@ public class WordLen implements Strategy {
         SqlCursor textCursor = source.onQuery(dataQuery);
         if (textCursor == null) return false;
 
+        int total = textCursor.count();
+        float step = 1f / total;
+        float current = 0f;
+
         while (textCursor.moveToNext()) {
             String text = textCursor.getString(0);
             insert(sync, column, text);
+
+            current += step;
+            listener.onProgress(current);
         }
 
         textCursor.close();

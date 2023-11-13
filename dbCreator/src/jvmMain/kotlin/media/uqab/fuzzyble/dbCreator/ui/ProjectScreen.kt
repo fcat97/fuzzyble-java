@@ -63,7 +63,7 @@ class ProjectScreen(project: Project) : Screen {
     private var searching by mutableStateOf(false)
     private var matchAllWords by mutableStateOf(false)
     private var searchText by mutableStateOf("")
-    private var tableItems by mutableStateOf<List<AnnotatedString>>(emptyList())
+    private var tableRows = mutableStateListOf<List<AnnotatedString>>()
 
     private var isFuzzyble by mutableStateOf(false)
     private val fuzzyMethods = listOf("Trigram (recommended)", "WordLen")
@@ -323,13 +323,13 @@ class ProjectScreen(project: Project) : Screen {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     AsyncImage(if (isFuzzyble) Icons.checkMark else Icons.warning) {
-                        Icon(it, null)
+                        Image(it, null)
                     }
 
                     Text("Fuzzyble Column")
 
                     AsyncImage(if (isPopulated) Icons.checkMark else Icons.warning) {
-                        Icon(it, null)
+                        Image(it, null)
                     }
 
                     Text("Column Populated")
@@ -351,11 +351,6 @@ class ProjectScreen(project: Project) : Screen {
     private fun DataTable(modifier: Modifier) {
         val horizontalScrollState = rememberScrollState()
         val lazyListState = rememberLazyListState()
-        var tableRows by remember { mutableStateOf<List<List<AnnotatedString>>>(emptyList()) }
-
-        LaunchedEffect(tableItems) {
-            tableRows = if (columns.isEmpty()) emptyList() else tableItems.chunked(columns.size)
-        }
 
         Box(modifier) {
             LazyColumn(Modifier.fillMaxSize().horizontalScroll(horizontalScrollState), state = lazyListState) {
@@ -399,7 +394,7 @@ class ProjectScreen(project: Project) : Screen {
             },
             trailingIcon = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("found ${tableItems.size} items", modifier = Modifier.padding(end = 12.dp))
+                    Text("found ${tableRows.size - 1} items", modifier = Modifier.padding(end = 12.dp))
 
                     if (searching) {
                         CircularProgressIndicator(Modifier.size(24.dp))
@@ -660,7 +655,10 @@ class ProjectScreen(project: Project) : Screen {
             searching = false
         }
 
-        tableItems = allItems
+        tableRows.clear()
+        if (columns.isNotEmpty()) {
+            tableRows.addAll(allItems.chunked(columns.size))
+        }
     }
 
     private fun getHighlighted(text: String, suggestions: List<String>): AnnotatedString {

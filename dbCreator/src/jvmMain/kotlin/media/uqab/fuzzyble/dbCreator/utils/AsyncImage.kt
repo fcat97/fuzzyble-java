@@ -24,6 +24,7 @@ SOFTWARE.
 
 package media.uqab.fuzzyble.dbCreator.utils
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.Icon
 import androidx.compose.runtime.*
@@ -63,7 +64,7 @@ fun AsyncImage(url: String, modifier: Modifier = Modifier.size(24.dp)) {
     }
 
     if (imageBitmap != null) {
-        Icon(bitmap = imageBitmap!!, null, modifier, tint = Color.Black)
+        Image(bitmap = imageBitmap!!, null, modifier)
     }
 }
 
@@ -121,16 +122,16 @@ private suspend fun getFromCache(url: String): ImageBitmap? {
 private suspend fun saveToCache(url: String, bitmap: InputStream) {
     val path = getCachePath(url) ?: return
     withContext(Dispatchers.IO) {
-        val success = FileOutputStream(path.toFile()).use { fos ->
+        val percent = FileOutputStream(path.toFile()).use { fos ->
             val len = bitmap.available()
             val byteReadLen = bitmap.copyTo(fos)
 
             // success if 99% downloaded.
-            byteReadLen.toFloat() / len in 0.99f..1f
+            byteReadLen.toFloat() / len
         }
 
-        if (!success) {
-            println("saveToCache: failed to cache $url")
+        if (percent !in 0.99f..1f) {
+            println("saveToCache: failed to cache ($percent%) $url")
             try {
                 path.toFile().delete()
             } catch (e: Exception) {

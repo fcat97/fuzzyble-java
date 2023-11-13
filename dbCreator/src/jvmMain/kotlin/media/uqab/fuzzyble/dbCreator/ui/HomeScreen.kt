@@ -8,11 +8,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -27,6 +22,7 @@ import media.uqab.fuzzyble.dbCreator.usecase.CreateNewProject
 import media.uqab.fuzzyble.dbCreator.usecase.GetProjectFromPath
 import media.uqab.fuzzyble.dbCreator.usecase.GetRecentProjects
 import media.uqab.fuzzyble.dbCreator.usecase.SaveRecentProject
+import media.uqab.fuzzyble.dbCreator.utils.AsyncImage
 
 
 class HomeScreen : Screen {
@@ -79,7 +75,7 @@ class HomeScreen : Screen {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
                 ) {
-                    Icon(Icons.Default.Edit, null)
+                    AsyncImage(Icons.open)
 
                     Text("Open Existing")
                 }
@@ -93,7 +89,7 @@ class HomeScreen : Screen {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically)
                 ) {
-                    Icon(Icons.Default.Add, null)
+                    AsyncImage(Icons.add)
 
                     Text("New Project")
                 }
@@ -221,7 +217,7 @@ class HomeScreen : Screen {
                         Text(project.projectDir)
                     }
 
-                    Icon(imageVector = Icons.Default.ArrowForward, null)
+                    AsyncImage(Icons.rightArrow)
                 }
             }
         }
