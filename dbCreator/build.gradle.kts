@@ -29,7 +29,7 @@ kotlin {
                 implementation("com.darkrockstudios:mpfilepicker:2.1.0")
                 implementation("com.google.code.gson:gson:2.10.1")
                 implementation("org.xerial:sqlite-jdbc:3.43.2.2")
-                implementation("media.uqab.fuzzyble:fuzzybleJava:0.6.1")
+                implementation("media.uqab.fuzzyble:fuzzybleJava:0.6.2")
             }
         }
         val jvmTest by getting

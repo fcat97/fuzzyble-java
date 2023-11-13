@@ -55,7 +55,7 @@ public class WordLen implements Strategy {
     }
 
     @Override
-    public boolean populate(Fuzzyble source, Fuzzyble sync, FuzzyColumn column) throws IOException {
+    public boolean populate(Fuzzyble source, Fuzzyble sync, FuzzyColumn column, ProgressListener listener) throws IOException {
         String dataQuery = "SELECT " + column.column + " FROM " + column.table;
 
         // get text of that columns

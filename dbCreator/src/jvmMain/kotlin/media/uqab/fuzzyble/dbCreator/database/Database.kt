@@ -6,26 +6,24 @@ import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.ResultSet
 
-class Database: Fuzzyble {
-    private var mConnection: Connection? = null
-    fun openDatabase(dbPath: String) {
-        Class.forName("org.sqlite.JDBC")
+class Database(url: String): Fuzzyble {
+    private val mConnection: Connection
 
-        if (mConnection == null) {
-            mConnection = DriverManager.getConnection("jdbc:sqlite:$dbPath")
-        }
+    init {
+        Class.forName("org.sqlite.JDBC")
+        mConnection = DriverManager.getConnection("jdbc:sqlite:$url")
     }
 
     override fun onQuery(p0: String): SqlCursor {
-        return QueryCursor(mConnection!!, p0)
+        return QueryCursor(mConnection, p0)
     }
 
     override fun onQuery(p0: String, p1: Array<String>?): SqlCursor {
-        return QueryCursor(mConnection!!, prepareQuery(p0, p1))
+        return QueryCursor(mConnection, prepareQuery(p0, p1))
     }
 
     override fun onExecute(p0: String, p1: Array<String>?) {
-        val stmt = mConnection!!.createStatement()
+        val stmt = mConnection.createStatement()
         if (p1 == null) {
             stmt.executeUpdate(p0)
         } else {
@@ -46,8 +44,6 @@ class Database: Fuzzyble {
     }
 
     fun getColumns(tableName: String): List<String> {
-        if (mConnection == null) throw RuntimeException("db is not opened")
-
         val result = mutableListOf<String>()
         val rs: ResultSet = "select * from $tableName LIMIT 0".query() ?: return result
         val mrs = rs.metaData
@@ -65,8 +61,6 @@ class Database: Fuzzyble {
     }
 
     fun getFirst100Row(tableName: String): List<String> {
-        if (mConnection == null) throw RuntimeException("db is not opened")
-
         val result = mutableListOf<String>()
         val columns = getColumns(tableName)
         val rs: ResultSet = "select * from $tableName LIMIT 100".query() ?: return result
@@ -92,8 +86,6 @@ class Database: Fuzzyble {
     }
 
     fun searchItems(tableName: String, columnName: String, search: String): List<String> {
-        if (mConnection == null) throw RuntimeException("db is not opened")
-
         val result = mutableListOf<String>()
         val columns = getColumns(tableName)
         val rs: ResultSet = "select * from $tableName where $columnName LIKE '%$search%' LIMIT 100".query() ?: return result
@@ -122,9 +114,8 @@ class Database: Fuzzyble {
     }
 
     private fun String.query(): ResultSet? {
-        if (mConnection == null) return null
 
-        val stmt = mConnection!!.createStatement()
+        val stmt = mConnection.createStatement()
         return stmt.executeQuery(this)
     }
 
@@ -138,8 +129,8 @@ class Database: Fuzzyble {
     }
 
     fun close() {
-        if(mConnection?.isClosed != true) {
-            mConnection?.close()
+        if(!mConnection.isClosed) {
+            mConnection.close()
         }
     }
 

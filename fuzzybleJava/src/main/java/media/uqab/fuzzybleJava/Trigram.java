@@ -55,16 +55,23 @@ public class Trigram implements Strategy {
     }
 
     @Override
-    public boolean populate(Fuzzyble source, Fuzzyble sync, FuzzyColumn column) throws IOException {
+    public boolean populate(Fuzzyble source, Fuzzyble sync, FuzzyColumn column, ProgressListener listener) throws IOException {
         String dataQuery = "SELECT " + column.column + " FROM " + column.table;
 
         // get text of that columns
         SqlCursor textCursor = source.onQuery(dataQuery);
         if (textCursor == null) return false;
 
+        int total = textCursor.count();
+        float step = 1f / total;
+        float current = 0f;
+
         while (textCursor.moveToNext()) {
             String text = textCursor.getString(0);
             insert(sync, column, text);
+
+            current += step;
+            listener.onProgress(current);
         }
 
         textCursor.close();

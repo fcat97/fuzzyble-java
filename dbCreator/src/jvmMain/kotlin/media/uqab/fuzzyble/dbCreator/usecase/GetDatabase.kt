@@ -5,17 +5,14 @@ import kotlinx.coroutines.withContext
 import media.uqab.fuzzyble.dbCreator.database.Database
 
 object GetDatabase {
-    private var mDatabase: Database? = null
-
-    suspend operator fun invoke(dbName: String): Database {
+    suspend operator fun invoke(path: String): Database? {
         return withContext(Dispatchers.IO) {
-            if (mDatabase == null) {
-                mDatabase = Database().apply {
-                    openDatabase(dbName)
-                }
+            return@withContext try {
+                Database(url = path)
+            } catch (e: Exception) {
+                println(e.message)
+                null
             }
-
-            return@withContext mDatabase!!
         }
     }
 }

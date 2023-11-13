@@ -37,7 +37,7 @@ import java.io.IOException;
  * @author github/fCat97
  */
 public class FuzzyCursor {
-    private final DatabaseUtil2 databaseUtil;
+    private final DatabaseUtil databaseUtil;
 
 
     /**
@@ -90,7 +90,7 @@ public class FuzzyCursor {
      * Two default implementations {@linkplain Trigram} &amp; {@linkplain WordLen} provided.
      */
     public FuzzyCursor(Fuzzyble immutableDatabase, Fuzzyble mutableDatabase, Strategy strategy) {
-        this.databaseUtil = new DatabaseUtil2(immutableDatabase, mutableDatabase, strategy);
+        this.databaseUtil = new DatabaseUtil(immutableDatabase, mutableDatabase, strategy);
     }
 
     /**
@@ -153,8 +153,12 @@ public class FuzzyCursor {
      * To enable use {@linkplain FuzzyCursor#createFuzzyble}.
      */
     public void populate(FuzzyColumn column, boolean force) throws IOException, RuntimeException {
+        populate(column, force, null);
+    }
+
+    public void populate(FuzzyColumn column, boolean force, ProgressListener listener) throws IOException, RuntimeException {
         throwIfNotFuzzyble(column);
-        databaseUtil.populateTable(column, force);
+        databaseUtil.populateTable(column, force, listener);
     }
 
     /**

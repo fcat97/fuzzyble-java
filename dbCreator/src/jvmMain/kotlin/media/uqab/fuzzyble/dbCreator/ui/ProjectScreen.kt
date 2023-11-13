@@ -7,17 +7,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.twotone.CheckCircle
-import androidx.compose.material.icons.twotone.Search
-import androidx.compose.material.icons.twotone.Warning
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -51,6 +44,7 @@ import kotlin.io.path.extension
 class ProjectScreen(project: Project) : Screen {
     private var event by mutableStateOf<Event?>(null)
     private var dialogIntent by mutableStateOf<DialogIntent?>(null)
+    private var isMobileScreen by mutableStateOf(false)
 
     private var name by mutableStateOf(project.name)
     private var projectDir by mutableStateOf(project.projectDir)
@@ -63,6 +57,7 @@ class ProjectScreen(project: Project) : Screen {
     private var selectedColumn by mutableStateOf(-1)
 
     private var isOperationRunning by mutableStateOf(false)
+    private var operationProgress by mutableStateOf(0f)
 
     private var searchJob: Job? = null
     private var searching by mutableStateOf(false)
@@ -87,21 +82,26 @@ class ProjectScreen(project: Project) : Screen {
     private fun ProjectHomeContent() {
         val coroutine = rememberCoroutineScope()
 
+        DisposableEffect(Unit) {
+            onDispose {
+                immutableDb?.close()
+                mutableDb?.close()
+            }
+        }
+
         // show dialog based on intent
         Dialogs(dialogIntent) { dialogIntent = it }
 
         var screenWidth by remember { mutableStateOf(100) }
-        val isMobileScreen by remember { derivedStateOf { screenWidth < 1080 } }
+        val mobileScreen by remember { derivedStateOf { screenWidth < 1080 } }
+        LaunchedEffect(mobileScreen) {
+            isMobileScreen = mobileScreen
+        }
+
 
         LaunchedEffect(Unit) {
-            val db = GetDatabase(srcDb)
-            db.getTables().forEach {
-                tables.add(it)
-            }
-
-            if (tables.isNotEmpty()) {
-                onSelectTable(0)
-            }
+            openSrcDatabase(srcDb)
+            openSyncDatabase(syncDb)
         }
 
         Scaffold(
@@ -121,7 +121,7 @@ class ProjectScreen(project: Project) : Screen {
                         }
                     },
                 ) {
-                    AsyncImage("https://openclipart.org/image/800px/237989")
+                    AsyncImage(Icons.save)
                 }
             }
         ) {
@@ -169,9 +169,18 @@ class ProjectScreen(project: Project) : Screen {
                             ScreenManager.peek().pop()
                         },
                     ) {
-                        Icon(imageVector = Icons.Default.ArrowBack, null)
+                        AsyncImage(Icons.back)
                     }
                 },
+                actions = {
+                    AnimatedVisibility(isOperationRunning) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(32.dp),
+                            progress = operationProgress,
+                            color = MaterialTheme.colors.secondary
+                        )
+                    }
+                }
             )
 
             EventBar(modifier = Modifier.fillMaxWidth(), event) { event = null }
@@ -213,14 +222,14 @@ class ProjectScreen(project: Project) : Screen {
         ) {
             TextField(
                 value = srcDb,
-                onValueChange = { srcDb = it },
+                onValueChange = { },
                 modifier = Modifier.fillMaxWidth(48 / 100f),
                 label = {
                     Text("Source Database")
                 },
                 trailingIcon = {
                     IconButton(onClick = { dialogIntent = DialogIntent.OpenSourceFilePicker }) {
-                        Icon(Icons.Default.Edit, null)
+                        AsyncImage(Icons.upload)
                     }
                 }
             )
@@ -234,7 +243,7 @@ class ProjectScreen(project: Project) : Screen {
                 },
                 trailingIcon = {
                     IconButton(onClick = { dialogIntent = DialogIntent.OpenSyncFilePicker }) {
-                        Icon(Icons.Default.Edit, null)
+                        AsyncImage(Icons.upload)
                     }
                 }
             )
@@ -281,22 +290,16 @@ class ProjectScreen(project: Project) : Screen {
         var showMethodDropDown by remember { mutableStateOf(false) }
 
         LaunchedEffect(srcDb, syncDb, selectedTable, selectedColumn, selectedMethod) {
-            show = try {
-                if (srcDb.isBlank()) false
-                else if (syncDb.isBlank()) false
-                else if (tables[selectedTable].isBlank()) false
-                else if (columns[selectedColumn].isBlank()) false
-                else true
-            } catch (ignored: Exception) {
-                false
-            }
+            show = mutableDb != null
 
             try {
-                val column = getFuzzyColumn()
-                val cursor = getCursor()
+                if (show) {
+                    val column = getFuzzyColumn()
+                    val cursor = getCursor()
 
-                isFuzzyble = cursor.isFuzzyble(column)
-                isPopulated = cursor.isPopulated(column)
+                    isFuzzyble = cursor.isFuzzyble(column)
+                    isPopulated = cursor.isPopulated(column)
+                }
             } catch (ignore: Exception) {
 
             }
@@ -319,21 +322,15 @@ class ProjectScreen(project: Project) : Screen {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Icon(
-                        imageVector = if (isFuzzyble) Icons.TwoTone.CheckCircle else Icons.TwoTone.Warning,
-                        contentDescription = null,
-                        modifier = Modifier.size(24.dp),
-                        tint = if (isFuzzyble) Color.Green else Color.LightGray
-                    )
+                    AsyncImage(if (isFuzzyble) Icons.checkMark else Icons.warning) {
+                        Icon(it, null)
+                    }
 
                     Text("Fuzzyble Column")
 
-                    Icon(
-                        imageVector = if (isPopulated) Icons.TwoTone.CheckCircle else Icons.TwoTone.Warning,
-                        contentDescription = null,
-                        modifier = Modifier.size(24.dp),
-                        tint = if (isPopulated) Color.Green else Color.LightGray
-                    )
+                    AsyncImage(if (isPopulated) Icons.checkMark else Icons.warning) {
+                        Icon(it, null)
+                    }
 
                     Text("Column Populated")
 
@@ -398,7 +395,7 @@ class ProjectScreen(project: Project) : Screen {
             placeholder = { Text("Search") },
             modifier = modifier,
             leadingIcon = {
-                Icon(Icons.TwoTone.Search, null)
+                AsyncImage(Icons.search)
             },
             trailingIcon = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -434,9 +431,6 @@ class ProjectScreen(project: Project) : Screen {
     ) {
         var mTextFieldSize by remember { mutableStateOf(Size.Zero) }
 
-        val icon = if (expanded) Icons.Filled.KeyboardArrowUp
-        else Icons.Filled.KeyboardArrowDown
-
         Column(modifier) {
             TextField(
                 value = try {
@@ -457,7 +451,13 @@ class ProjectScreen(project: Project) : Screen {
                             onDismiss(!expanded)
                         },
                         content = {
-                            Icon(icon, "expand")
+                            AsyncImage(Icons.rightArrow) {
+                                Icon(
+                                    it,
+                                    null,
+                                    modifier = Modifier.rotate(if (expanded) 90f else 0f).size(24.dp)
+                                )
+                            }
                         }
                     )
                 }
@@ -482,6 +482,8 @@ class ProjectScreen(project: Project) : Screen {
 
     @Composable
     private fun Dialogs(dialogIntent: DialogIntent?, onChangeIntent: (DialogIntent?) -> Unit) {
+        val coroutine = rememberCoroutineScope()
+
         @Composable
         fun openFilePicker(onPick: (String) -> Unit) {
             FilePicker(true, projectDir) {
@@ -498,11 +500,21 @@ class ProjectScreen(project: Project) : Screen {
 
         when (dialogIntent) {
             DialogIntent.OpenSourceFilePicker -> {
-                openFilePicker { srcDb = it }
+                openFilePicker {
+                    srcDb = it
+                    coroutine.launch {
+                        openSrcDatabase(it)
+                    }
+                }
             }
 
             DialogIntent.OpenSyncFilePicker -> {
-                openFilePicker { syncDb = it }
+                openFilePicker {
+                    syncDb = it
+                    coroutine.launch {
+                        openSyncDatabase(it)
+                    }
+                }
             }
 
             DialogIntent.FileExtensionMismatch -> {
@@ -537,9 +549,8 @@ class ProjectScreen(project: Project) : Screen {
     private suspend fun onSelectTable(index: Int) {
         try {
             selectedTable = index
-            val db = GetDatabase(srcDb)
             columns.clear()
-            db.getColumns(tables[selectedTable]).let {
+            getImmutableDb().getColumns(tables[selectedTable]).let {
                 columns.addAll(it)
             }
 
@@ -557,7 +568,7 @@ class ProjectScreen(project: Project) : Screen {
         matchAllWords: Boolean = false
     ) {
         searching = true
-        val db = GetDatabase(srcDb)
+        val db = getImmutableDb()
 
         val allItems = mutableListOf<AnnotatedString>()
         allItems.addAll(columns.map { getHighlighted(it, emptyList()) })
@@ -671,12 +682,39 @@ class ProjectScreen(project: Project) : Screen {
         }
     }
 
+    private suspend fun openSrcDatabase(path: String) {
+        if (path.isNotBlank()) {
+            immutableDb?.close()
+            immutableDb = null
+
+            tables.clear()
+            getImmutableDb().getTables().forEach {
+                tables.add(it)
+            }
+        }
+
+        if (tables.isNotEmpty()) {
+            onSelectTable(0)
+        }
+    }
+
+    private suspend fun openSyncDatabase(path: String) {
+        if (path.isNotBlank()) {
+            mutableDb?.close()
+            mutableDb = null
+
+            getMutableDb()
+        }
+    }
+
     private suspend fun saveChanges(): Boolean {
         return withContext(Dispatchers.IO) {
             val update = Project(
                 name = name,
                 lastModified = System.currentTimeMillis(),
-                projectDir, srcDb, syncDb
+                projectDir,
+                srcDb,
+                syncDb
             )
 
             SaveProject(update)
@@ -689,13 +727,32 @@ class ProjectScreen(project: Project) : Screen {
             isOperationRunning = true
             val cur = getCursor()
             val column = getFuzzyColumn()
-            CreateFuzzyTable(cur, column, true)
+            CreateFuzzyTable(cur, column, true) {
+                operationProgress = it
+            }
             event = Event.Success("Fuzzy Search Enabled")
         } catch (ignore: Exception) {
         } finally {
             isOperationRunning = false
         }
 
+    }
+
+    // fuzzy db -------------------------------------------
+    private var immutableDb: Database? = null
+    private suspend fun getImmutableDb(): Database {
+        if (immutableDb == null) {
+            immutableDb = GetDatabase(srcDb)
+        }
+        return immutableDb!!
+    }
+
+    private var mutableDb: Database? = null
+    private suspend fun getMutableDb(): Database {
+        if (mutableDb == null) {
+            mutableDb = GetDatabase(syncDb)
+        }
+        return mutableDb!!
     }
 
     private val strategy: Strategy
@@ -706,8 +763,7 @@ class ProjectScreen(project: Project) : Screen {
         }
 
     private suspend fun getCursor(): FuzzyCursor {
-        val db = GetDatabase(srcDb)
-        return FuzzyCursor(db, strategy)
+        return FuzzyCursor(getImmutableDb(), getMutableDb(), strategy)
     }
 
     private fun getFuzzyColumn(): FuzzyColumn {

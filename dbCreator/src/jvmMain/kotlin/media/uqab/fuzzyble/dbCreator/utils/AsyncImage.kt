@@ -28,11 +28,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.Icon
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.res.loadImageBitmap
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
 import media.uqab.fuzzyble.dbCreator.Const
 import java.io.FileOutputStream
 import java.io.InputStream
@@ -49,18 +49,39 @@ import java.security.MessageDigest
  *
  * @author github/fCat97
  */
+@OptIn(DelicateCoroutinesApi::class)
 @Composable
 fun AsyncImage(url: String, modifier: Modifier = Modifier.size(24.dp)) {
-    var imageBitmap by remember {
+    var imageBitmap by remember(url) {
         mutableStateOf<ImageBitmap?>(null)
     }
 
-    LaunchedEffect(Unit) {
-        imageBitmap = getImage(url)
+    LaunchedEffect(url) {
+        GlobalScope.launch {
+            imageBitmap = getImage(url)
+        }
     }
 
     if (imageBitmap != null) {
-        Icon(bitmap = imageBitmap!!, null, modifier)
+        Icon(bitmap = imageBitmap!!, null, modifier, tint = Color.Black)
+    }
+}
+
+@OptIn(DelicateCoroutinesApi::class)
+@Composable
+fun AsyncImage(url: String, content: @Composable (ImageBitmap) -> Unit) {
+    var imageBitmap by remember(url) {
+        mutableStateOf<ImageBitmap?>(null)
+    }
+
+    LaunchedEffect(url) {
+        GlobalScope.launch {
+            imageBitmap = getImage(url)
+        }
+    }
+
+    if (imageBitmap != null) {
+        content(imageBitmap!!)
     }
 }
 
@@ -68,7 +89,7 @@ private suspend fun getImage(url: String): ImageBitmap? {
     return withContext(Dispatchers.IO) {
         try {
             val cache = getFromCache(url)
-            if ( cache != null) return@withContext cache
+            if (cache != null) return@withContext cache
 
             URL(url).openStream().use { ins ->
                 saveToCache(url, ins)
@@ -100,10 +121,20 @@ private suspend fun getFromCache(url: String): ImageBitmap? {
 private suspend fun saveToCache(url: String, bitmap: InputStream) {
     val path = getCachePath(url) ?: return
     withContext(Dispatchers.IO) {
-        FileOutputStream(path.toFile()).use { fos ->
-            val bytes = ByteArray(1024)
-            while (bitmap.read(bytes) != -1) {
-                fos.write(bytes)
+        val success = FileOutputStream(path.toFile()).use { fos ->
+            val len = bitmap.available()
+            val byteReadLen = bitmap.copyTo(fos)
+
+            // success if 99% downloaded.
+            byteReadLen.toFloat() / len in 0.99f..1f
+        }
+
+        if (!success) {
+            println("saveToCache: failed to cache $url")
+            try {
+                path.toFile().delete()
+            } catch (e: Exception) {
+                println("saveToCache: ${e.message}")
             }
         }
     }
@@ -111,7 +142,7 @@ private suspend fun saveToCache(url: String, bitmap: InputStream) {
 
 private fun getCachePath(url: String): Path? {
     val userHome = System.getProperty("user.home")
-    val cacheDirectory: Path = Paths.get(userHome, ".cache", Const.APP_NAME, "asyncImage")
+    val cacheDirectory: Path = Paths.get(userHome, ".cache", Const.APP_NAME.lowercase(), "asyncImage")
 
     if (!cacheDirectory.toFile().exists()) {
         cacheDirectory.toFile().mkdirs()

@@ -10,7 +10,7 @@ public interface Strategy {
 
     boolean insert(Fuzzyble database, FuzzyColumn column, String text);
 
-    boolean populate(Fuzzyble source, Fuzzyble sync, FuzzyColumn column) throws IOException;
+    boolean populate(Fuzzyble source, Fuzzyble sync, FuzzyColumn column, ProgressListener listener) throws IOException;
 
     /**
      * Get fuzzy matched word suggestions
