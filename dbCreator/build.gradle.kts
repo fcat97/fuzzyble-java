@@ -48,11 +48,13 @@ compose.desktop {
         }
 
         nativeDistributions {
-            modules("java.sql")
+            // https://github.com/JetBrains/compose-multiplatform/issues/2668#issuecomment-1419178642
+            // https://github.com/Wavesonics/compose-multiplatform-file-picker/issues/5#issuecomment-1808325426
+            includeAllModules = true
 
             targetFormats(TargetFormat.Dmg, TargetFormat.Exe, TargetFormat.Deb)
             packageName = "dbCreator"
-            packageVersion = "1.0.1"
+            packageVersion = "1.0.2"
             windows {
                 iconFile.set(project.file("icon.ico"))
             }

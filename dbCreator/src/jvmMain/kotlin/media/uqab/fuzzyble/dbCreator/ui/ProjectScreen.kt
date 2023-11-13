@@ -58,6 +58,7 @@ class ProjectScreen(project: Project) : Screen {
 
     private var isOperationRunning by mutableStateOf(false)
     private var operationProgress by mutableStateOf(0f)
+    private var reloadTableStatus by mutableStateOf(0)
 
     private var searchJob: Job? = null
     private var searching by mutableStateOf(false)
@@ -69,9 +70,6 @@ class ProjectScreen(project: Project) : Screen {
     private val fuzzyMethods = listOf("Trigram (recommended)", "WordLen")
     private var selectedMethod by mutableStateOf(0)
 
-    @Composable
-    override fun Content() = ProjectHomeContent()
-
     private enum class DialogIntent {
         OpenSourceFilePicker,
         OpenSyncFilePicker,
@@ -79,7 +77,7 @@ class ProjectScreen(project: Project) : Screen {
     }
 
     @Composable
-    private fun ProjectHomeContent() {
+    override fun Content() {
         val coroutine = rememberCoroutineScope()
 
         DisposableEffect(Unit) {
@@ -216,20 +214,38 @@ class ProjectScreen(project: Project) : Screen {
 
     @Composable
     private fun DatabaseLocation() {
-        Row(
+        val coroutine = rememberCoroutineScope()
+
+        Column(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             TextField(
                 value = srcDb,
                 onValueChange = { },
-                modifier = Modifier.fillMaxWidth(48 / 100f),
+                modifier = Modifier.fillMaxWidth(),
                 label = {
                     Text("Source Database")
                 },
                 trailingIcon = {
-                    IconButton(onClick = { dialogIntent = DialogIntent.OpenSourceFilePicker }) {
-                        AsyncImage(Icons.upload)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        IconButton(
+                            onClick = {
+                                coroutine.launch {
+                                    openSrcDatabase(srcDb)
+                                }
+                            },
+                            content = {
+                                AsyncImage(Icons.reload)
+                            }
+                        )
+
+                        IconButton(onClick = { dialogIntent = DialogIntent.OpenSourceFilePicker }) {
+                            AsyncImage(Icons.upload)
+                        }
                     }
                 }
             )
@@ -237,13 +253,29 @@ class ProjectScreen(project: Project) : Screen {
             TextField(
                 value = syncDb,
                 onValueChange = { syncDb = it },
-                modifier = Modifier.fillMaxWidth(48 / 52f),
+                modifier = Modifier.fillMaxWidth(),
                 label = {
                     Text("Destination Database")
                 },
                 trailingIcon = {
-                    IconButton(onClick = { dialogIntent = DialogIntent.OpenSyncFilePicker }) {
-                        AsyncImage(Icons.upload)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        IconButton(
+                            onClick = {
+                                coroutine.launch {
+                                    openSyncDatabase(syncDb)
+                                }
+                            },
+                            content = {
+                                AsyncImage(Icons.reload)
+                            }
+                        )
+
+                        IconButton(onClick = { dialogIntent = DialogIntent.OpenSyncFilePicker }) {
+                            AsyncImage(Icons.upload)
+                        }
                     }
                 }
             )
@@ -275,7 +307,7 @@ class ProjectScreen(project: Project) : Screen {
                 label = "Source DB column",
                 items = columns,
                 selected = selectedColumn,
-                onSelect = { selectedColumn = it },
+                onSelect = { onSelectColumn(it) },
                 expanded = expandColumnDropDown,
                 onDismiss = { expandColumnDropDown = it }
             )
@@ -289,7 +321,7 @@ class ProjectScreen(project: Project) : Screen {
         var isPopulated by remember { mutableStateOf(false) }
         var showMethodDropDown by remember { mutableStateOf(false) }
 
-        LaunchedEffect(srcDb, syncDb, selectedTable, selectedColumn, selectedMethod) {
+        LaunchedEffect(reloadTableStatus, selectedMethod) {
             show = mutableDb != null
 
             try {
@@ -549,12 +581,17 @@ class ProjectScreen(project: Project) : Screen {
                 columns.addAll(it)
             }
 
-            if (columns.isNotEmpty()) {
-                selectedColumn = 0
-            }
+            onSelectColumn(0)
 
             getItems(searchText, matchAllWords)
         } catch (ignored: Exception) {
+        }
+    }
+
+    private fun onSelectColumn(index: Int) {
+        if (columns.isNotEmpty()) {
+            selectedColumn = index
+            reloadTableStatus += 1
         }
     }
 
@@ -729,6 +766,8 @@ class ProjectScreen(project: Project) : Screen {
                 operationProgress = it
             }
             event = Event.Success("Fuzzy Search Enabled")
+
+            reloadTableStatus += 1
         } catch (ignore: Exception) {
         } finally {
             isOperationRunning = false
