@@ -19,9 +19,8 @@ dependencies {
 }
 
 def groupId = 'media.uqab.fuzzyble'
-def artifactId = 'fuzzybleJava'
-def artifactVersion = '0.6.5'
-
+def artifactId = 'fuzzybleJavaExt'
+def artifactVersion = '0.6.4'
 
 publishToMavenLocal.dependsOn(test)
 afterEvaluate {
@@ -30,7 +29,7 @@ afterEvaluate {
             fuzzyble(MavenPublication) {
                 group = groupId
                 version = artifactVersion
-                artifactId = "fuzzybleJava"
+                artifactId = "fuzzybleJavaExt"
                 from components.java
 
                 pom {

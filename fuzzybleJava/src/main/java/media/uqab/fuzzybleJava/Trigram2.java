@@ -16,8 +16,13 @@ public class Trigram2 implements Strategy {
     }
 
     @Override
+    public String getStrategyName() {
+        return getClass().getSimpleName();
+    }
+
+    @Override
     public boolean create(Fuzzyble database, FuzzyColumn column) {
-        String[] tables = getTables(column);
+        String[] tables = getAssociatedTables(column);
         String trigramTable = tables[0];
         String wordsTable = tables[1];
         String relationTable = tables[2];
@@ -44,13 +49,14 @@ public class Trigram2 implements Strategy {
 
     @Override
     public boolean insert(Fuzzyble database, FuzzyColumn column, String text) {
+        InsertWordPair inserter = new InsertWordPair();
         for (String word: TextHelper.splitAndFilterText(text)) {
             for (String trigram: TextHelper.splitAndGetTrigrams(word)) {
 
                 if (Thread.currentThread().isInterrupted()) return false;
 
                 try {
-                    InsertWordPair.insert(database, column, trigram, word);
+                    inserter.insert(database, column, trigram, word);
                 } catch (Exception e) {
                     System.out.println(e.getMessage());
                 }
@@ -86,14 +92,11 @@ public class Trigram2 implements Strategy {
     }
 
     @Override
-    public String[] getTables(FuzzyColumn column) {
-        return getAllTable(column);
-    }
-
-    private static String[] getAllTable(FuzzyColumn column) {
-        String trigramTable = column.getFuzzyTableName() + "_tri";
-        String wordsTable = column.getFuzzyTableName() + "_word";
-        String relationTable = column.getFuzzyTableName() + "_rel";
+    public String[] getAssociatedTables(FuzzyColumn column) {
+        String baseName = "fuzzyble_" + getStrategyName();
+        String trigramTable = baseName + "_tri";
+        String wordsTable = baseName + "_word";
+        String relationTable = baseName + "_rel";
 
         return new String[]{trigramTable, wordsTable, relationTable};
     }
@@ -114,7 +117,7 @@ public class Trigram2 implements Strategy {
 
     private List<String> performExactSearch(Fuzzyble database, FuzzyColumn column, String word) {
         ArrayList<String> exact = new ArrayList<>();
-        final String wordTable = getAllTable(column)[1];
+        final String wordTable = getAssociatedTables(column)[1];
 
         try {
             SqlCursor exactQuery = database.onQuery("SELECT * FROM " + wordTable + " WHERE word = ?", new String[]{word});
@@ -132,7 +135,7 @@ public class Trigram2 implements Strategy {
 
     private List<String> performPartialSearch(Fuzzyble database, FuzzyColumn column, String word) {
         ArrayList<String> partial = new ArrayList<>();
-        final String wordTable = getAllTable(column)[1];
+        final String wordTable = getAssociatedTables(column)[1];
 
         try {
             SqlCursor partialQuery = database.onQuery("SELECT * FROM " + wordTable + " WHERE word LIKE ? || '%' OR ? LIKE word || '%'", new String[]{word, word});
@@ -153,7 +156,7 @@ public class Trigram2 implements Strategy {
         List<String> trigrams = TextHelper.splitAndGetTrigrams(word);
         if (trigrams.isEmpty()) return new ArrayList<>();
 
-        final String[] tables = getTables(column);
+        final String[] tables = getAssociatedTables(column);
         final String trigramTable = tables[0];
         final String wordsTable = tables[1];
         final String relationTable = tables[2];
@@ -178,7 +181,6 @@ public class Trigram2 implements Strategy {
 
         try {
             SqlCursor cursor = database.onQuery(queryBuilder.toString(), trigrams.toArray(new String[]{}));
-            int count = cursor.count();
             while (cursor.moveToNext()) {
                 String s = cursor.getString(0);
                 suggestions.add(s);
@@ -193,8 +195,8 @@ public class Trigram2 implements Strategy {
     }
 
     // insert mechanism ------------------------------------------------------------
-    private static class InsertWordPair {
-        static void insert(Fuzzyble database, FuzzyColumn column, String trigram, String word) {
+    private class InsertWordPair {
+        void insert(Fuzzyble database, FuzzyColumn column, String trigram, String word) {
             try {
                 // Insert trigram into trigramTable
                 int trigramId = insertTrigram(database, column, trigram);
@@ -210,8 +212,8 @@ public class Trigram2 implements Strategy {
             }
         }
 
-        private static int insertTrigram(Fuzzyble database, FuzzyColumn column, String trigram) {
-            final String trigramTable = getAllTable(column)[0];
+        private int insertTrigram(Fuzzyble database, FuzzyColumn column, String trigram) {
+            final String trigramTable = getAssociatedTables(column)[0];
 
             String insertTrigramQuery = "INSERT OR IGNORE INTO " + trigramTable + "(trigram) VALUES (?)";
             database.onExecute(insertTrigramQuery, new String[]{trigram});
@@ -232,8 +234,8 @@ public class Trigram2 implements Strategy {
             return -1;
         }
 
-        private static int insertWord(Fuzzyble database, FuzzyColumn column, String word) {
-            final String wordsTable = getAllTable(column)[1];
+        private int insertWord(Fuzzyble database, FuzzyColumn column, String word) {
+            final String wordsTable = getAssociatedTables(column)[1];
 
             String insertWordQuery = "INSERT OR IGNORE INTO " + wordsTable + "(word) VALUES (?)";
             try {
@@ -257,10 +259,10 @@ public class Trigram2 implements Strategy {
             return -1;
         }
 
-        private static void insertRelationship(Fuzzyble database, FuzzyColumn column, int trigramId, int wordId) {
+        private void insertRelationship(Fuzzyble database, FuzzyColumn column, int trigramId, int wordId) {
             if (trigramId == -1 || wordId == -1) return;
 
-            final String relationTable = getAllTable(column)[2];
+            final String relationTable = getAssociatedTables(column)[2];
 
             String insertRelationshipQuery = "INSERT INTO " + relationTable + "(tId, wId) VALUES (?, ?)";
 

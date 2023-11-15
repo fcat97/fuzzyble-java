@@ -30,14 +30,15 @@ class FuzzyUtilsTest {
         mMutConnection = DriverManager.getConnection("jdbc:sqlite::memory:");
         mImMutConnection = DriverManager.getConnection("jdbc:sqlite::memory:");
 
-        mSimilarity = new Levenshtein();
-        mFuzzyColumn = new ColumnTrigrams("tab1", "c1");
-        mStrategy = new Trigram2(mSimilarity);
-
         demoText = new ArrayList<>();
         demoText.add("Fumarole minerals (or fumarolic minerals) are minerals which are deposited by fumarole exhalations. They form when gases and compounds desublimate or precipitate out of condensates, forming mineral deposits. They are mostly associated with volcanoes (as volcanic sublimate or fumarolic sublimate) following deposition from volcanic gas during an eruption or discharge from a volcanic vent or fumarole,[1] but have been encountered on burning coal deposits as well. They can be black or multicoloured and are often unstable upon exposure to the atmosphere.");
         demoText.add("Native sulfur is a common sublimate mineral and various halides, sulfides and sulfates occur in this environment associated with fumaroles and eruptions. A number of rare minerals are fumarole minerals, and at least 240 such minerals are known from Tolbachik volcano in Kamchatka, Russia. Other volcanoes where particular fumarole minerals have been discovered are Vulcano in Italy and Bezymyanny also in Russia.");
 
+        // combinations
+        int distance = 3;
+        mSimilarity = new Levenshtein(distance);
+        mFuzzyColumn = new FuzzyColumn("tab1", "c1");
+        mStrategy = new Trigram2(mSimilarity);
         Fuzzyble mMutableDb = new MockDatabase(mMutConnection);
         Fuzzyble mImMutableDb = new ImmutableDatabase(mImMutConnection);
 
@@ -76,8 +77,11 @@ class FuzzyUtilsTest {
         Fuzzyble mutDb = new MockDatabase(mutCon);
         Fuzzyble imMutDb = new ImmutableDatabase(imMutCon);
 
-        FuzzyColumn column = new ColumnTrigrams("tab1", "c1");
-        FuzzyCursor cursor = new FuzzyCursor(mutDb, imMutDb);
+        int distance = 3;
+        Similarity similarity = new Levenshtein(distance);
+        Strategy strategy = new Trigram(similarity);
+        FuzzyColumn column = new FuzzyColumn("tab1", "c1");
+        FuzzyCursor cursor = new FuzzyCursor(mutDb, imMutDb, strategy);
 
         // when
         Executable test = () -> cursor.createFuzzyble(column, false);
@@ -194,7 +198,7 @@ class FuzzyUtilsTest {
         // given
         Connection cn = DriverManager.getConnection("jdbc:sqlite::memory:");
         Fuzzyble db = new MockDatabase(cn);
-        FuzzyColumn column = new ColumnTrigrams("tableA", "col1");
+        FuzzyColumn column = new FuzzyColumn("tableA", "col1");
 
         String createTableSql = "CREATE TABLE " + column.table +
                 "(id int primary key," +
@@ -234,7 +238,7 @@ class FuzzyUtilsTest {
         // given
         Connection cn = DriverManager.getConnection("jdbc:sqlite::memory:");
         Fuzzyble db = new MockDatabase(cn);
-        FuzzyColumn column = new ColumnTrigrams("tableA", "col1");
+        FuzzyColumn column = new FuzzyColumn("tableA", "col1");
 
         String createTableSql = "CREATE TABLE " + column.table +
                 "(id int primary key," +

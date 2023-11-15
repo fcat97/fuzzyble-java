@@ -17,8 +17,13 @@ public class Trigram implements Strategy {
     }
 
     @Override
+    public String getStrategyName() {
+        return getClass().getSimpleName();
+    }
+
+    @Override
     public boolean create(Fuzzyble database, FuzzyColumn column) {
-        String sql = "CREATE TABLE IF NOT EXISTS " + column.getFuzzyTableName() + "(" +
+        String sql = "CREATE TABLE IF NOT EXISTS " + getAssociatedTables(column)[0] + "(" +
                 "trigram VARCHAR(10) NOT NULL, " +
                 "word VARCHAR(255) NOT NULL, " +
                 "PRIMARY KEY(trigram, word)" +
@@ -29,7 +34,7 @@ public class Trigram implements Strategy {
 
     @Override
     public boolean insert(Fuzzyble database, FuzzyColumn column, String text) {
-        String insertSql = "INSERT OR IGNORE INTO " + column.getFuzzyTableName() + " (trigram, word) VALUES (?, ?)";
+        String insertSql = "INSERT OR IGNORE INTO " + getAssociatedTables(column)[0] + " (trigram, word) VALUES (?, ?)";
 
         for (String word: TextHelper.splitAndFilterText(text)) {
             for (String trigram: TextHelper.splitAndGetTrigrams(word)) {
@@ -74,8 +79,9 @@ public class Trigram implements Strategy {
     }
 
     @Override
-    public String[] getTables(FuzzyColumn column) {
-        return new String[]{column.getFuzzyTableName()};
+    public String[] getAssociatedTables(FuzzyColumn column) {
+        String table = "fuzzyble_" + getStrategyName() + "_" + column.table + "_" + column.column;
+        return new String[]{ table };
     }
 
     @Override
@@ -96,7 +102,7 @@ public class Trigram implements Strategy {
         ArrayList<String> exact = new ArrayList<>();
 
         try {
-            SqlCursor exactQuery = database.onQuery("SELECT * FROM " + column.getFuzzyTableName() + " WHERE word = ?", new String[]{word});
+            SqlCursor exactQuery = database.onQuery("SELECT * FROM " + getAssociatedTables(column)[0] + " WHERE word = ?", new String[]{word});
             while (exactQuery.moveToNext()) {
                 String s = exactQuery.getString(0);
                 exact.add(s);
@@ -113,7 +119,7 @@ public class Trigram implements Strategy {
         ArrayList<String> partial = new ArrayList<>();
 
         try {
-            SqlCursor partialQuery = database.onQuery("SELECT * FROM " + column.getFuzzyTableName() + " WHERE word LIKE ? || '%' OR ? LIKE word || '%'", new String[]{word, word});
+            SqlCursor partialQuery = database.onQuery("SELECT * FROM " + getAssociatedTables(column)[0] + " WHERE word LIKE ? || '%' OR ? LIKE word || '%'", new String[]{word, word});
             while (partialQuery.moveToNext()) {
                 String s = partialQuery.getString(0);
                 partial.add(s);
@@ -135,7 +141,7 @@ public class Trigram implements Strategy {
         String tr = sb.toString();
         if (!tr.isEmpty()) tr = tr.substring(0, tr.length() - 1);
 
-        final String query = "SELECT * FROM " + column.getFuzzyTableName() + " WHERE trigram IN (" + tr + ")";
+        final String query = "SELECT * FROM " + getAssociatedTables(column)[0] + " WHERE trigram IN (" + tr + ")";
 
         List<String> suggestions = new ArrayList<>();
         try {

@@ -16,15 +16,20 @@ public class WordLen implements Strategy {
     }
 
     @Override
+    public String getStrategyName() {
+        return getClass().getSimpleName();
+    }
+
+    @Override
     public boolean create(Fuzzyble database, FuzzyColumn column) {
-        String sql = "CREATE TABLE IF NOT EXISTS " + column.getFuzzyTableName() + "(word TEXT, len INTEGER)";
+        String sql = "CREATE TABLE IF NOT EXISTS " + getAssociatedTables(column)[0] + "(word TEXT, len INTEGER)";
         database.onExecute(sql, null);
         return true;
     }
 
     @Override
     public boolean insert(Fuzzyble database, FuzzyColumn column, String text) {
-        final String fuzzyTable = column.getFuzzyTableName();
+        final String fuzzyTable = getAssociatedTables(column)[0];
 
         String insertSql = "INSERT INTO " + fuzzyTable + " (word, len) " +
                 "SELECT ?, ? " +
@@ -73,8 +78,9 @@ public class WordLen implements Strategy {
     }
 
     @Override
-    public String[] getTables(FuzzyColumn column) {
-        return new String[]{column.getFuzzyTableName()};
+    public String[] getAssociatedTables(FuzzyColumn column) {
+        String table = "fuzzyble_" + getStrategyName() + "_" + column.table + "_" + column.column;
+        return new String[]{ table };
     }
 
     @Override
@@ -95,7 +101,7 @@ public class WordLen implements Strategy {
         ArrayList<String> exact = new ArrayList<>();
 
         try {
-            SqlCursor exactQuery = database.onQuery("SELECT * FROM " + column.getFuzzyTableName() + " WHERE word = ?", new String[]{word});
+            SqlCursor exactQuery = database.onQuery("SELECT * FROM " + getAssociatedTables(column)[0] + " WHERE word = ?", new String[]{word});
             while (exactQuery.moveToNext()) {
                 String s = exactQuery.getString(0);
                 exact.add(s);
@@ -112,7 +118,7 @@ public class WordLen implements Strategy {
         ArrayList<String> partial = new ArrayList<>();
 
         try {
-            SqlCursor partialQuery = database.onQuery("SELECT * FROM " + column.getFuzzyTableName() + " WHERE word LIKE ? || '%' OR ? LIKE word || '%'", new String[]{word, word});
+            SqlCursor partialQuery = database.onQuery("SELECT * FROM " + getAssociatedTables(column)[0] + " WHERE word LIKE ? || '%' OR ? LIKE word || '%'", new String[]{word, word});
             while (partialQuery.moveToNext()) {
                 String s = partialQuery.getString(0);
                 partial.add(s);
@@ -149,7 +155,7 @@ public class WordLen implements Strategy {
 
         ArrayList<String> words = new ArrayList<>();
         try {
-            SqlCursor cursor = database.onQuery("SELECT * FROM " + column.getFuzzyTableName() + " WHERE len IN (" + length + ")");
+            SqlCursor cursor = database.onQuery("SELECT * FROM " + getAssociatedTables(column)[0] + " WHERE len IN (" + length + ")");
             while (cursor.moveToNext()) {
                 String s = cursor.getString(0);
                 words.add(s);

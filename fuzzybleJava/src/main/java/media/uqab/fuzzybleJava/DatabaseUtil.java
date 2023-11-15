@@ -67,7 +67,7 @@ class DatabaseUtil {
     }
 
     boolean isFuzzyEnabled(FuzzyColumn column) throws IOException {
-        for (String tableName: strategy.getTables(column)) {
+        for (String tableName: strategy.getAssociatedTables(column)) {
             String query = "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '" + tableName + "'";
             SqlCursor cursor = syncDatabase.onQuery(query);
             int count = cursor.count();
@@ -85,7 +85,7 @@ class DatabaseUtil {
      * @throws IOException if error occur
      */
     boolean isPopulated(FuzzyColumn column) throws IOException {
-        for (String tableName: strategy.getTables(column)) {
+        for (String tableName: strategy.getAssociatedTables(column)) {
             String query = "SELECT * FROM fuzzyble_meta_data WHERE table_name = ?";
             String[] args = new String[]{tableName};
             SqlCursor cursor = syncDatabase.onQuery(query, args);
@@ -112,7 +112,7 @@ class DatabaseUtil {
         int i = 0;
         if (isPopulated) i = 1;
 
-        for (String tableName: strategy.getTables(column)) {
+        for (String tableName: strategy.getAssociatedTables(column)) {
             String[] args = new String[]{
                     tableName,
                     String.valueOf(i),
@@ -130,7 +130,7 @@ class DatabaseUtil {
     }
 
     private void deleteData(FuzzyColumn column) {
-        for (String table: strategy.getTables(column)) {
+        for (String table: strategy.getAssociatedTables(column)) {
             String deleteSql = "DROP TABLE IF EXISTS " + table;
             syncDatabase.onExecute(deleteSql, null);
         }
