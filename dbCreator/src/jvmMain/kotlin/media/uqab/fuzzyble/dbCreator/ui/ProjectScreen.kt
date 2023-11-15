@@ -28,16 +28,11 @@ import kotlinx.coroutines.withContext
 import media.uqab.fuzzyble.dbCreator.database.Database
 import media.uqab.fuzzyble.dbCreator.model.Project
 import media.uqab.fuzzyble.dbCreator.usecase.CreateFuzzyTable
+import media.uqab.fuzzyble.dbCreator.usecase.EnableFuzzySearch
 import media.uqab.fuzzyble.dbCreator.usecase.GetDatabase
 import media.uqab.fuzzyble.dbCreator.usecase.SaveProject
 import media.uqab.fuzzyble.dbCreator.utils.AsyncImage
-import media.uqab.fuzzybleJava.ColumnTrigrams
-import media.uqab.fuzzybleJava.ColumnWordLen
-import media.uqab.fuzzybleJava.FuzzyColumn
-import media.uqab.fuzzybleJava.FuzzyCursor
-import media.uqab.fuzzybleJava.Strategy
-import media.uqab.fuzzybleJava.Trigram
-import media.uqab.fuzzybleJava.WordLen
+import media.uqab.fuzzybleJava.*
 import kotlin.io.path.Path
 import kotlin.io.path.extension
 
@@ -67,7 +62,7 @@ class ProjectScreen(project: Project) : Screen {
     private var tableRows = mutableStateListOf<List<AnnotatedString>>()
 
     private var isFuzzyble by mutableStateOf(false)
-    private val fuzzyMethods = listOf("Trigram (recommended)", "WordLen")
+    private val fuzzyMethods = listOf("Trigram (recommended)", "Trigram (Legacy)", "WordLen")
     private var selectedMethod by mutableStateOf(0)
 
     private enum class DialogIntent {
@@ -762,9 +757,13 @@ class ProjectScreen(project: Project) : Screen {
             isOperationRunning = true
             val cur = getCursor()
             val column = getFuzzyColumn()
-            CreateFuzzyTable(cur, column, true) {
+            val data = getImmutableDb().getData(column.table, column.column)
+            EnableFuzzySearch(data, cur, column, true) {
                 operationProgress = it
             }
+//            CreateFuzzyTable(cur, column, true) {
+//                operationProgress = it
+//            }
             event = Event.Success("Fuzzy Search Enabled")
 
             reloadTableStatus += 1
@@ -793,10 +792,10 @@ class ProjectScreen(project: Project) : Screen {
     }
 
     private val strategy: Strategy
-        get() = if (fuzzyMethods[selectedMethod].contains("trigram", ignoreCase = true)) {
-            Trigram()
-        } else {
-            WordLen()
+        get() = fuzzyMethods[selectedMethod].let { m ->
+            if (m.contains("legacy", ignoreCase = true)) Trigram()
+            else if (m.contains("trigram", ignoreCase = true)) Trigram2()
+            else WordLen()
         }
 
     private suspend fun getCursor(): FuzzyCursor {
@@ -806,10 +805,9 @@ class ProjectScreen(project: Project) : Screen {
     private fun getFuzzyColumn(): FuzzyColumn {
         val t = tables[selectedTable]
         val c = columns[selectedColumn]
-        return if (strategy is Trigram) {
-            ColumnTrigrams(t, c)
-        } else {
-            ColumnWordLen(t, c)
+        return when (strategy) {
+            is Trigram2, is Trigram -> ColumnTrigrams(t, c)
+            else -> ColumnWordLen(t, c)
         }
     }
 }

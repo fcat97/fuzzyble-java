@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+@Deprecated
 public class Trigram implements Strategy {
     private final Similarity similarity;
 
@@ -22,13 +23,6 @@ public class Trigram implements Strategy {
                 "word VARCHAR(255) NOT NULL, " +
                 "PRIMARY KEY(trigram, word)" +
                 ")";
-        database.onExecute(sql, null);
-        return true;
-    }
-
-    @Override
-    public boolean delete(Fuzzyble database, FuzzyColumn column) {
-        String sql = "DROP TABLE IF EXISTS " + column.getFuzzyTableName();
         database.onExecute(sql, null);
         return true;
     }
@@ -77,6 +71,11 @@ public class Trigram implements Strategy {
         textCursor.close();
 
         return true;
+    }
+
+    @Override
+    public String[] getTables(FuzzyColumn column) {
+        return new String[]{column.getFuzzyTableName()};
     }
 
     @Override

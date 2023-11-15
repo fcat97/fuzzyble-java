@@ -23,13 +23,6 @@ public class WordLen implements Strategy {
     }
 
     @Override
-    public boolean delete(Fuzzyble database, FuzzyColumn column) {
-        String sql = "DROP TABLE IF EXISTS " + column.getFuzzyTableName();
-        database.onExecute(sql, null);
-        return true;
-    }
-
-    @Override
     public boolean insert(Fuzzyble database, FuzzyColumn column, String text) {
         final String fuzzyTable = column.getFuzzyTableName();
 
@@ -77,6 +70,11 @@ public class WordLen implements Strategy {
         textCursor.close();
 
         return true;
+    }
+
+    @Override
+    public String[] getTables(FuzzyColumn column) {
+        return new String[]{column.getFuzzyTableName()};
     }
 
     @Override

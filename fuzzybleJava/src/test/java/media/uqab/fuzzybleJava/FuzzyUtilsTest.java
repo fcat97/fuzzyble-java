@@ -32,7 +32,7 @@ class FuzzyUtilsTest {
 
         mSimilarity = new Levenshtein();
         mFuzzyColumn = new ColumnTrigrams("tab1", "c1");
-        mStrategy = new Trigram(mSimilarity);
+        mStrategy = new Trigram2(mSimilarity);
 
         demoText = new ArrayList<>();
         demoText.add("Fumarole minerals (or fumarolic minerals) are minerals which are deposited by fumarole exhalations. They form when gases and compounds desublimate or precipitate out of condensates, forming mineral deposits. They are mostly associated with volcanoes (as volcanic sublimate or fumarolic sublimate) following deposition from volcanic gas during an eruption or discharge from a volcanic vent or fumarole,[1] but have been encountered on burning coal deposits as well. They can be black or multicoloured and are often unstable upon exposure to the atmosphere.");

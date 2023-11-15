@@ -25,7 +25,7 @@ class DatabaseUtil {
      * @param deletePrevious if true, delete the previous table
      */
     void createTable(FuzzyColumn column, boolean deletePrevious) throws IOException {
-        if (deletePrevious) strategy.delete(syncDatabase, column);
+        if (deletePrevious) deleteData(column);
 
         strategy.create(syncDatabase, column);
 
@@ -67,11 +67,15 @@ class DatabaseUtil {
     }
 
     boolean isFuzzyEnabled(FuzzyColumn column) throws IOException {
-        String query = "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '" + column.getFuzzyTableName() + "'";
-        SqlCursor cursor = syncDatabase.onQuery(query);
-        int count = cursor.count();
-        cursor.close();
-        return count > 0;
+        for (String tableName: strategy.getTables(column)) {
+            String query = "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '" + tableName + "'";
+            SqlCursor cursor = syncDatabase.onQuery(query);
+            int count = cursor.count();
+            cursor.close();
+            if (count <= 0) return false;
+        }
+
+        return true;
     }
 
     /**
@@ -81,17 +85,22 @@ class DatabaseUtil {
      * @throws IOException if error occur
      */
     boolean isPopulated(FuzzyColumn column) throws IOException {
-        String query = "SELECT * FROM fuzzyble_meta_data WHERE table_name = ?";
-        String[] args = new String[]{column.getFuzzyTableName()};
-        SqlCursor cursor = syncDatabase.onQuery(query, args);
+        for (String tableName: strategy.getTables(column)) {
+            String query = "SELECT * FROM fuzzyble_meta_data WHERE table_name = ?";
+            String[] args = new String[]{tableName};
+            SqlCursor cursor = syncDatabase.onQuery(query, args);
 
-        if (cursor.moveToNext()) {
-            String s = cursor.getString(2);
-            return Integer.parseInt(s) == 1;
+            boolean populated = false;
+            if (cursor.moveToNext()) {
+                String s = cursor.getString(2);
+                populated = Integer.parseInt(s) == 1;
+            }
+            cursor.close();
+
+            if (! populated) return false;
         }
 
-        cursor.close();
-        return false;
+        return true;
     }
 
     /**
@@ -103,19 +112,28 @@ class DatabaseUtil {
         int i = 0;
         if (isPopulated) i = 1;
 
-        String[] args = new String[]{
-                column.getFuzzyTableName(),
-                String.valueOf(i),
-                String.valueOf(System.currentTimeMillis())
-        };
+        for (String tableName: strategy.getTables(column)) {
+            String[] args = new String[]{
+                    tableName,
+                    String.valueOf(i),
+                    String.valueOf(System.currentTimeMillis())
+            };
 
-        String markPopulatedSql = "INSERT OR REPLACE INTO fuzzyble_meta_data(table_name, populated, last_update) VALUES(?, ?, ?)";
-        syncDatabase.onExecute(markPopulatedSql, args);
+            String markPopulatedSql = "INSERT OR REPLACE INTO fuzzyble_meta_data(table_name, populated, last_update) VALUES(?, ?, ?)";
+            syncDatabase.onExecute(markPopulatedSql, args);
+        }
     }
 
     String[] getWordSuggestion(FuzzyColumn column, String word) {
         List<String> suggestion = strategy.getSuggestions(syncDatabase, column, word);
         return suggestion.toArray(new String[]{});
+    }
+
+    private void deleteData(FuzzyColumn column) {
+        for (String table: strategy.getTables(column)) {
+            String deleteSql = "DROP TABLE IF EXISTS " + table;
+            syncDatabase.onExecute(deleteSql, null);
+        }
     }
 
     private void createMetaTable() {

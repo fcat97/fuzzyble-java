@@ -85,6 +85,18 @@ class Database(url: String): Fuzzyble {
         return result
     }
 
+    fun getData(tableName: String, columnName: String): List<String> {
+        val result = mutableListOf<String>()
+        val rs: ResultSet = "select $columnName from $tableName".query() ?: return result
+        while (rs.next()) {
+            val s = rs.getString(columnName)
+            result.add(s)
+        }
+        rs.close()
+        rs.statement.close()
+        return result
+    }
+
     fun searchItems(tableName: String, columnName: String, search: String): List<String> {
         val result = mutableListOf<String>()
         val columns = getColumns(tableName)
