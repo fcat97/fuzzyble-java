@@ -29,7 +29,7 @@ kotlin {
                 implementation("com.darkrockstudios:mpfilepicker:2.1.0")
                 implementation("com.google.code.gson:gson:2.10.1")
                 implementation("org.xerial:sqlite-jdbc:3.43.2.2")
-                implementation("media.uqab.fuzzyble:fuzzybleJava:0.6.4")
+                implementation("media.uqab.fuzzyble:fuzzybleJava:0.6.6")
             }
         }
         val jvmTest by getting
@@ -54,7 +54,7 @@ compose.desktop {
 
             targetFormats(TargetFormat.Dmg, TargetFormat.Exe, TargetFormat.Deb)
             packageName = "dbCreator"
-            packageVersion = "1.0.3"
+            packageVersion = "1.0.5"
             windows {
                 iconFile.set(project.file("icon.ico"))
             }

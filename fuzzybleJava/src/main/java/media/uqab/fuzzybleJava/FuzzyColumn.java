@@ -18,4 +18,9 @@ public class FuzzyColumn implements Serializable {
         this.table = table;
         this.column = column;
     }
+
+    @Override
+    public String toString() {
+        return "_" + table + "_" + column;
+    }
 }

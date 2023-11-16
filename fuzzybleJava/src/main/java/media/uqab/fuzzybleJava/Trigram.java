@@ -80,7 +80,7 @@ public class Trigram implements Strategy {
 
     @Override
     public String[] getAssociatedTables(FuzzyColumn column) {
-        String table = "fuzzyble_" + getStrategyName() + "_" + column.table + "_" + column.column;
+        String table = "fuzzyble_" + getStrategyName().toLowerCase() + column;
         return new String[]{ table };
     }
 

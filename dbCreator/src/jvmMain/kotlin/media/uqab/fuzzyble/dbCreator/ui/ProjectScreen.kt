@@ -21,13 +21,9 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
 import com.darkrockstudios.libraries.mpfilepicker.FilePicker
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
 import media.uqab.fuzzyble.dbCreator.database.Database
 import media.uqab.fuzzyble.dbCreator.model.Project
-import media.uqab.fuzzyble.dbCreator.usecase.CreateFuzzyTable
 import media.uqab.fuzzyble.dbCreator.usecase.EnableFuzzySearch
 import media.uqab.fuzzyble.dbCreator.usecase.GetDatabase
 import media.uqab.fuzzyble.dbCreator.usecase.SaveProject
@@ -35,6 +31,9 @@ import media.uqab.fuzzyble.dbCreator.utils.AsyncImage
 import media.uqab.fuzzybleJava.*
 import kotlin.io.path.Path
 import kotlin.io.path.extension
+import kotlin.time.Duration
+import kotlin.time.DurationUnit
+import kotlin.time.toDuration
 
 class ProjectScreen(project: Project) : Screen {
     private var event by mutableStateOf<Event?>(null)
@@ -62,13 +61,19 @@ class ProjectScreen(project: Project) : Screen {
     private var tableRows = mutableStateListOf<List<AnnotatedString>>()
 
     private var isFuzzyble by mutableStateOf(false)
-    private val fuzzyMethods = listOf("Trigram (recommended)", "Trigram (Legacy)", "WordLen")
-    private var selectedMethod by mutableStateOf(0)
+    private val fuzzyMethods = listOf(Methods.Trigram2, Methods.Trigram, Methods.WordLen)
+    private var selectedMethod by mutableStateOf(Methods.Trigram2)
 
     private enum class DialogIntent {
         OpenSourceFilePicker,
         OpenSyncFilePicker,
         FileExtensionMismatch
+    }
+
+    private enum class Methods(val label: String) {
+        Trigram2("Trigram (optimized, slow)"),
+        Trigram("Trigram (fast)"),
+        WordLen("WordLen")
     }
 
     @Composable
@@ -166,6 +171,10 @@ class ProjectScreen(project: Project) : Screen {
                     }
                 },
                 actions = {
+                    AnimatedVisibility(isOperationRunning) {
+                        Text(String.format("%.2f", 100 * operationProgress) + "%")
+                    }
+
                     AnimatedVisibility(isOperationRunning) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(32.dp),
@@ -321,11 +330,10 @@ class ProjectScreen(project: Project) : Screen {
 
             try {
                 if (show) {
-                    val column = getFuzzyColumn()
                     val cursor = getCursor()
 
-                    isFuzzyble = cursor.isFuzzyble(column)
-                    isPopulated = cursor.isPopulated(column)
+                    isFuzzyble = cursor.isFuzzyble(fuzzyColumn)
+                    isPopulated = cursor.isPopulated(fuzzyColumn)
                 }
             } catch (ignore: Exception) {
 
@@ -337,9 +345,19 @@ class ProjectScreen(project: Project) : Screen {
                 DropDownSelector(
                     modifier = Modifier.fillMaxWidth(),
                     label = "Select Fuzzy Method",
-                    items = fuzzyMethods,
-                    selected = selectedMethod,
-                    onSelect = { selectedMethod = it },
+                    items = fuzzyMethods.map { it.label },
+                    selected = when (selectedMethod) {
+                        Methods.Trigram2 -> 0
+                        Methods.Trigram -> 1
+                        Methods.WordLen -> 2
+                    },
+                    onSelect = {
+                        selectedMethod = when (it) {
+                            0 -> Methods.Trigram2
+                            1 -> Methods.Trigram
+                            else -> Methods.WordLen
+                        }
+                    },
                     expanded = showMethodDropDown,
                     onDismiss = { showMethodDropDown = it }
                 )
@@ -613,12 +631,11 @@ class ProjectScreen(project: Project) : Screen {
                 suggestions[search] = listOf(search)
                 db.searchItems(t, c, search)
             } else {
-                val fc = getFuzzyColumn()
                 val cursor = getCursor()
 
                 search.split(" ").forEach { word ->
                     if (word.length > 2) {
-                        cursor.getFuzzyWords(fc, word).let {
+                        cursor.getFuzzyWords(fuzzyColumn, word).let {
                             suggestions[word] = it.toList()
                         }
                     } else {
@@ -756,14 +773,9 @@ class ProjectScreen(project: Project) : Screen {
             event = Event.Success("Enabling Fuzzy Search")
             isOperationRunning = true
             val cur = getCursor()
-            val column = getFuzzyColumn()
-            val data = getImmutableDb().getData(column.table, column.column)
-            EnableFuzzySearch(data, cur, column, true) {
+            EnableFuzzySearch(cur, fuzzyColumn, true) {
                 operationProgress = it
             }
-//            CreateFuzzyTable(cur, column, true) {
-//                operationProgress = it
-//            }
             event = Event.Success("Fuzzy Search Enabled")
 
             reloadTableStatus += 1
@@ -792,22 +804,13 @@ class ProjectScreen(project: Project) : Screen {
     }
 
     private val strategy: Strategy
-        get() = fuzzyMethods[selectedMethod].let { m ->
-            if (m.contains("legacy", ignoreCase = true)) Trigram()
-            else if (m.contains("trigram", ignoreCase = true)) Trigram2()
-            else WordLen()
+        get() = when(selectedMethod) {
+            Methods.Trigram2 -> Trigram2()
+            Methods.Trigram -> Trigram()
+            Methods.WordLen -> WordLen()
         }
-
+    private val fuzzyColumn: FuzzyColumn get() = FuzzyColumn(tables[selectedTable], columns[selectedColumn])
     private suspend fun getCursor(): FuzzyCursor {
         return FuzzyCursor(getImmutableDb(), getMutableDb(), strategy)
-    }
-
-    private fun getFuzzyColumn(): FuzzyColumn {
-        val t = tables[selectedTable]
-        val c = columns[selectedColumn]
-        return when (strategy) {
-            is Trigram2, is Trigram -> ColumnTrigrams(t, c)
-            else -> ColumnWordLen(t, c)
-        }
     }
 }

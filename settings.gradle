@@ -3,9 +3,11 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        mavenLocal()
     }
 }
 
 rootProject.name = 'Fuzzyble'
 include 'fuzzybleJava'
+include 'fuzzybleJavaExt'
 

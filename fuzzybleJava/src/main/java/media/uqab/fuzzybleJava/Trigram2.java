@@ -49,14 +49,15 @@ public class Trigram2 implements Strategy {
 
     @Override
     public boolean insert(Fuzzyble database, FuzzyColumn column, String text) {
-        InsertWordPair inserter = new InsertWordPair();
+        InsertWordPair inserter = new InsertWordPair(database, column);
+
         for (String word: TextHelper.splitAndFilterText(text)) {
             for (String trigram: TextHelper.splitAndGetTrigrams(word)) {
 
                 if (Thread.currentThread().isInterrupted()) return false;
 
                 try {
-                    inserter.insert(database, column, trigram, word);
+                    inserter.insert(trigram, word);
                 } catch (Exception e) {
                     System.out.println(e.getMessage());
                 }
@@ -93,7 +94,7 @@ public class Trigram2 implements Strategy {
 
     @Override
     public String[] getAssociatedTables(FuzzyColumn column) {
-        String baseName = "fuzzyble_" + getStrategyName();
+        String baseName = "fuzzyble_" + getStrategyName().toLowerCase() + column;
         String trigramTable = baseName + "_tri";
         String wordsTable = baseName + "_word";
         String relationTable = baseName + "_rel";
@@ -196,81 +197,38 @@ public class Trigram2 implements Strategy {
 
     // insert mechanism ------------------------------------------------------------
     private class InsertWordPair {
-        void insert(Fuzzyble database, FuzzyColumn column, String trigram, String word) {
+        private final String trigramTable;
+        private final String wordsTable;
+        private final String relationTable;
+        private final Fuzzyble database;
+
+        InsertWordPair(Fuzzyble database, FuzzyColumn column) {
+            this.database = database;
+
+            String[] table = getAssociatedTables(column);
+            trigramTable = table[0];
+            wordsTable = table[1];
+            relationTable = table[2];
+        }
+
+        void insert(String trigram, String word) {
             try {
                 // Insert trigram into trigramTable
-                int trigramId = insertTrigram(database, column, trigram);
+                String trigramInsert = "INSERT OR IGNORE INTO " + trigramTable + "(trigram) VALUES (?)";
+                String wordInsert = "INSERT OR IGNORE INTO " + wordsTable + "(word) VALUES (?)";
+                String relationInsert = "INSERT INTO " + relationTable + "(tId, wId) VALUES (" +
+                        "(SELECT id FROM " + trigramTable + " WHERE trigram = ?)," +
+                        "(SELECT id FROM " + wordsTable + " WHERE word = ?)" +
+                        ")";
 
-                // Insert word into wordsTable
-                int wordId = insertWord(database, column, word);
-
-                // Insert relationship into relationTable
-                insertRelationship(database, column, trigramId, wordId);
-
+                database.onExecute(trigramInsert, new String[]{trigram});
+                database.onExecute(wordInsert, new String[]{word});
+                database.onExecute(relationInsert, new String[]{trigram, word});
             } catch (Exception e) {
                 System.out.println(e.getMessage());
             }
         }
 
-        private int insertTrigram(Fuzzyble database, FuzzyColumn column, String trigram) {
-            final String trigramTable = getAssociatedTables(column)[0];
 
-            String insertTrigramQuery = "INSERT OR IGNORE INTO " + trigramTable + "(trigram) VALUES (?)";
-            database.onExecute(insertTrigramQuery, new String[]{trigram});
-
-            // Retrieve the ID of the inserted trigram
-            String selectTrigramIdQuery = "SELECT id FROM " + trigramTable + " WHERE trigram = ?";
-
-            try (SqlCursor cursor = database.onQuery(selectTrigramIdQuery, new String[]{trigram})) {
-                if (cursor.moveToNext()) {
-                    String id = cursor.getString(0);
-                    return Integer.parseInt(id);
-                }
-            } catch (Exception e) {
-                System.out.println(e.getMessage());
-            }
-
-            // Return -1 if the trigram ID couldn't be retrieved
-            return -1;
-        }
-
-        private int insertWord(Fuzzyble database, FuzzyColumn column, String word) {
-            final String wordsTable = getAssociatedTables(column)[1];
-
-            String insertWordQuery = "INSERT OR IGNORE INTO " + wordsTable + "(word) VALUES (?)";
-            try {
-                database.onExecute(insertWordQuery, new String[]{word});
-            } catch (Exception e) {
-                System.out.println(e.getMessage());
-            }
-
-            // Retrieve the ID of the inserted word
-            String selectWordIdQuery = "SELECT id FROM " + wordsTable + " WHERE word = ?";
-            try (SqlCursor cursor = database.onQuery(selectWordIdQuery, new String[]{word})) {
-                if (cursor.moveToNext()) {
-                    String id = cursor.getString(0);
-                    return Integer.parseInt(id);
-                }
-            } catch (Exception e) {
-                System.out.println(e.getMessage());
-            }
-
-            // Return -1 if the word ID couldn't be retrieved
-            return -1;
-        }
-
-        private void insertRelationship(Fuzzyble database, FuzzyColumn column, int trigramId, int wordId) {
-            if (trigramId == -1 || wordId == -1) return;
-
-            final String relationTable = getAssociatedTables(column)[2];
-
-            String insertRelationshipQuery = "INSERT INTO " + relationTable + "(tId, wId) VALUES (?, ?)";
-
-            try {
-                database.onExecute(insertRelationshipQuery, new String[]{String.valueOf(trigramId), String.valueOf(wordId)});
-            } catch (Exception e) {
-                System.out.println(e.getMessage());
-            }
-        }
     }
 }
