@@ -4,12 +4,16 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.DragData
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -18,8 +22,10 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
+import androidx.compose.ui.window.Dialog
 import com.darkrockstudios.libraries.mpfilepicker.FilePicker
 import kotlinx.coroutines.*
 import media.uqab.fuzzyble.dbCreator.database.Database
@@ -50,6 +56,7 @@ class ProjectScreen(project: Project) : Screen {
     private var selectedTable by mutableStateOf(-1)
     private var selectedColumn by mutableStateOf(-1)
 
+    private var showInstructionDialog by mutableStateOf(false)
     private var isOperationRunning by mutableStateOf(false)
     private var operationProgress by mutableStateOf(0f)
     private var reloadTableStatus by mutableStateOf(0)
@@ -71,10 +78,12 @@ class ProjectScreen(project: Project) : Screen {
     }
 
     private enum class Methods(val label: String) {
-        Trigram2("Trigram (optimized, slow)"),
-        Trigram("Trigram (fast)"),
-        WordLen("WordLen")
+        Trigram2("Trigram (Experimental)"),
+        Trigram("Trigram (more suggestion but less relevant)"),
+        WordLen("WordLen (more relevant but less suggestion)")
     }
+
+    // composable ----------------------------------------------------------------------------------
 
     @Composable
     override fun Content() {
@@ -90,12 +99,20 @@ class ProjectScreen(project: Project) : Screen {
         // show dialog based on intent
         Dialogs(dialogIntent) { dialogIntent = it }
 
+        // show instruction dialog
+        InstructionsDialog(showInstructionDialog) { showInstructionDialog = false }
+
         var screenWidth by remember { mutableStateOf(100) }
+        var screenHeight by remember { mutableStateOf(100) }
         val mobileScreen by remember { derivedStateOf { screenWidth < 1080 } }
         LaunchedEffect(mobileScreen) {
             isMobileScreen = mobileScreen
         }
 
+        LaunchedEffect(Unit) {
+            delay(1000)
+            showInstructionDialog = true
+        }
 
         LaunchedEffect(Unit) {
             openSrcDatabase(srcDb)
@@ -105,6 +122,7 @@ class ProjectScreen(project: Project) : Screen {
         Scaffold(
             modifier = Modifier.onGloballyPositioned {
                 screenWidth = it.size.width
+                screenHeight = it.size.height
             },
             topBar = { TitleBar() },
             floatingActionButton = {
@@ -124,18 +142,27 @@ class ProjectScreen(project: Project) : Screen {
             }
         ) {
             if (isMobileScreen) {
-                Column(
-                    modifier = Modifier.fillMaxSize().padding(30.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(20.dp)
-                ) {
-                    ProjectControlFields(Modifier.fillMaxWidth())
+                val mobileContainerState = rememberScrollState()
+                Box(Modifier.fillMaxSize()) {
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(30.dp)
+                            .verticalScroll(mobileContainerState),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(20.dp)
+                    ) {
+                        ProjectControlFields(Modifier.fillMaxWidth())
 
-                    AnimatedVisibility(isFuzzyble) {
-                        SearchBar(Modifier.fillMaxWidth())
+                        AnimatedVisibility(isFuzzyble) {
+                            SearchBar(Modifier.fillMaxWidth())
+                        }
+
+                        DataTable(Modifier.fillMaxWidth().height(screenHeight.dp))
                     }
 
-                    DataTable(Modifier.fillMaxWidth())
+                    VerticalScrollbar(
+                        adapter = ScrollbarAdapter(mobileContainerState),
+                        modifier = Modifier.align(Alignment.TopEnd)
+                    )
                 }
             } else {
                 Row(
@@ -181,6 +208,10 @@ class ProjectScreen(project: Project) : Screen {
                             progress = operationProgress,
                             color = MaterialTheme.colors.secondary
                         )
+                    }
+
+                    IconButton(onClick = { showInstructionDialog = true }) {
+                        AsyncImage(Icons.info)
                     }
                 }
             )
@@ -379,19 +410,36 @@ class ProjectScreen(project: Project) : Screen {
 
                     Text("Column Populated")
 
-                    TextButton(
-                        onClick = {
-                            coroutine.launch { enableFuzzySearch() }
-                        },
-                        content = {
-                            Text("Enable Fuzzy Search")
-                        }
-                    )
+                    if (isOperationRunning) {
+                        Button(
+                            onClick = {
+                                coroutine.cancel()
+                                isOperationRunning = false
+                            },
+                            content = {
+                                Text("Cancel Operation")
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                backgroundColor = MaterialTheme.colors.error,
+                                contentColor = MaterialTheme.colors.onError
+                            )
+                        )
+                    } else {
+                        Button(
+                            onClick = {
+                                coroutine.launch { enableFuzzySearch() }
+                            },
+                            content = {
+                                Text("Enable Fuzzy Search")
+                            },
+                        )
+                    }
                 }
             }
         }
     }
 
+    @OptIn(ExperimentalFoundationApi::class)
     @Composable
     private fun DataTable(modifier: Modifier) {
         val horizontalScrollState = rememberScrollState()
@@ -399,11 +447,28 @@ class ProjectScreen(project: Project) : Screen {
 
         Box(modifier) {
             LazyColumn(Modifier.fillMaxSize().horizontalScroll(horizontalScrollState), state = lazyListState) {
-                itemsIndexed(items = tableRows) { rI, row ->
+                val header = tableRows.firstOrNull() ?: emptyList()
+                val contents = if (tableRows.size > 1) {
+                    tableRows.subList(1, tableRows.size)
+                } else {
+                    emptyList()
+                }
+
+                stickyHeader {
+                    Row {
+                        header.forEach { item ->
+                            Surface(color = Color.LightGray) {
+                                Text(item, modifier = Modifier.width(180.dp))
+                            }
+                        }
+                    }
+                }
+
+                itemsIndexed(items = contents) { rI, row ->
                     Row {
                         row.forEach { item ->
-                            Surface(color = if (rI % 2 == 0) Color.LightGray else Color.LightGray.copy(alpha = 0.6f)) {
-                                Text(item, modifier = Modifier.width(300.dp))
+                            Surface(color = if (rI % 2 != 0) Color.LightGray else Color.LightGray.copy(alpha = 0.6f)) {
+                                Text(item, modifier = Modifier.width(180.dp))
                             }
                         }
                     }
@@ -414,7 +479,10 @@ class ProjectScreen(project: Project) : Screen {
                 adapter = ScrollbarAdapter(horizontalScrollState),
                 modifier = Modifier.align(Alignment.BottomStart)
             )
-            VerticalScrollbar(adapter = ScrollbarAdapter(lazyListState), modifier = Modifier.align(Alignment.TopEnd))
+            VerticalScrollbar(
+                adapter = ScrollbarAdapter(lazyListState),
+                modifier = Modifier.align(Alignment.TopEnd)
+            )
         }
     }
 
@@ -585,6 +653,54 @@ class ProjectScreen(project: Project) : Screen {
             else -> {}
         }
     }
+
+    @Composable
+    private fun InstructionsDialog(show: Boolean, onDismiss: () -> Unit) {
+        if (!show) return
+
+        Dialog(onDismissRequest = onDismiss) {
+            Card(modifier = Modifier.fillMaxHeight(0.7f).clip(RoundedCornerShape(5.dp))) {
+                Column {
+                    Text(
+                        "Instructions",
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.background(color = MaterialTheme.colors.primary)
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        color = MaterialTheme.colors.onPrimary
+                    )
+
+                    Text(
+                        """
+                ➡️ 1. Give a project name (anything is perfect)
+                
+                ➡️ 2. Select a source database (click the right open button)
+                
+                ➡️ 3. Give a path to to the destination (where all the created data will be stored) database. 
+                
+                It can be same as the source one (if you want to modify that, copy-paste that path here) or it can be any other database as you wish. 
+                
+                It is recommended to provide a separate path for destination database. For example, if the source is D:/fuzzyble/project1/source.db, you can use D:/fuzzyble/project1/destination.db
+                The destination database will be automatically created if it's not found in the specified location.
+                
+                ➡️ 4. Now select any combination of Source Db table & Source db column. 
+                The column you select, will be used to generate fuzzy data. Only this column can be used by fuzzyble library.
+                
+                ➡️ 5. Select a method to generate data.
+                   i.   Trigram(fast) is recommended.
+                   ii.  WordLen provides relevant search result but has gives suggestion. It is idea for typo correction.
+                   iii. Trigram(experimental) is not recommended.
+                
+                ➡️ 6. Click on Enable Fuzzy Search button to start the process.
+                """.trimIndent(),
+                        modifier = Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)
+                    )
+                }
+            }
+        }
+    }
+
+    // private methods -------------------------------------------------------------------------------
 
     private suspend fun onSelectTable(index: Int) {
         try {
@@ -804,7 +920,7 @@ class ProjectScreen(project: Project) : Screen {
     }
 
     private val strategy: Strategy
-        get() = when(selectedMethod) {
+        get() = when (selectedMethod) {
             Methods.Trigram2 -> Trigram2()
             Methods.Trigram -> Trigram()
             Methods.WordLen -> WordLen()

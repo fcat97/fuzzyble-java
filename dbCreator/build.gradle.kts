@@ -3,6 +3,7 @@ import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 plugins {
     kotlin("multiplatform")
     id("org.jetbrains.compose")
+    id("org.graalvm.buildtools.native")
 }
 
 group = "media.uqab.fuzzyble"
@@ -13,6 +14,12 @@ repositories {
     mavenCentral()
     mavenLocal()
     maven("https://maven.pkg.jetbrains.space/public/p/compose/dev")
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    kotlinOptions {
+        jvmTarget = "11" // Set the JVM target version
+    }
 }
 
 kotlin {
@@ -58,6 +65,17 @@ compose.desktop {
             windows {
                 iconFile.set(project.file("icon.ico"))
             }
+        }
+    }
+}
+
+graalvmNative {
+    // Configuration for native image build
+    toolchainDetection.set(true)
+    binaries {
+        named("main") {
+            imageName.set("icon.ico")
+            mainClass.set("media.uqab.fuzzyble.dbCreator.MainKt")
         }
     }
 }

@@ -12,6 +12,7 @@ fun main() = application {
         title = "Fuzzyble Database Creator"
     ) {
         AppTheme {
+            // DragAndDropExample()
             ScreenManager.peek().Start {
                 HomeScreen()
             }

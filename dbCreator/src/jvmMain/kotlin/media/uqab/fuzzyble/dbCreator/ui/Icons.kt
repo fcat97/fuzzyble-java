@@ -11,4 +11,5 @@ object Icons {
     const val rightArrow = "https://cdn-icons-png.flaticon.com/512/2985/2985179.png"
     const val save = "https://cdn-icons-png.flaticon.com/24/2874/2874091.png"
     const val reload = "https://cdn-icons-png.flaticon.com/64/7134/7134699.png"
+    const val info = "https://cdn-icons-png.flaticon.com/64/665/665049.png"
 }

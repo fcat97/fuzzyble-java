@@ -122,15 +122,11 @@ private suspend fun getFromCache(url: String): ImageBitmap? {
 private suspend fun saveToCache(url: String, bitmap: InputStream) {
     val path = getCachePath(url) ?: return
     withContext(Dispatchers.IO) {
-        val percent = FileOutputStream(path.toFile()).use { fos ->
-            val len = bitmap.available()
-            val byteReadLen = bitmap.copyTo(fos)
+        val len = bitmap.available()
+        val byteReadLen = FileOutputStream(path.toFile()).use(bitmap::copyTo)
 
-            // success if 99% downloaded.
-            byteReadLen.toFloat() / len
-        }
-
-        if (percent !in 0.99f..1f) {
+        val percent = byteReadLen / len
+        if (percent < .99) {
             println("saveToCache: failed to cache ($percent%) $url")
             try {
                 path.toFile().delete()
