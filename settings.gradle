@@ -9,5 +9,5 @@ dependencyResolutionManagement {
 
 rootProject.name = 'Fuzzyble'
 include 'fuzzybleJava'
-if (!System.env.JITPACK) include 'fuzzybleJavaExt'
+// include 'fuzzybleJavaExt'
 
