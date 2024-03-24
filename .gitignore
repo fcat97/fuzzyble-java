@@ -9,6 +9,7 @@ gen/
 
 # Ignore Gradle files
 .gradle/
+./*/.gradle/
 build/
 /captures
 .externalNativeBuild
@@ -44,6 +45,7 @@ render.experimental.xml
 .idea/assetWizardSettings.xml
 .idea/tasks.xml
 .idea/vcs.xml
+.idea/compiler.xml
 .idea/workspace.xml
 /out/
 

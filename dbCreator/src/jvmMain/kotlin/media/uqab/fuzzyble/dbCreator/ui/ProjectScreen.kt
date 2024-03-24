@@ -4,14 +4,12 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.DragData
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
@@ -37,9 +35,6 @@ import media.uqab.fuzzyble.dbCreator.utils.AsyncImage
 import media.uqab.fuzzybleJava.*
 import kotlin.io.path.Path
 import kotlin.io.path.extension
-import kotlin.time.Duration
-import kotlin.time.DurationUnit
-import kotlin.time.toDuration
 
 class ProjectScreen(project: Project) : Screen {
     private var event by mutableStateOf<Event?>(null)
@@ -49,7 +44,7 @@ class ProjectScreen(project: Project) : Screen {
     private var name by mutableStateOf(project.name)
     private var projectDir by mutableStateOf(project.projectDir)
     private var srcDb by mutableStateOf(project.srcDb)
-    private var syncDb by mutableStateOf(project.syncDb)
+    private var sinkDb by mutableStateOf(project.sinkDb)
 
     private val tables = mutableStateListOf<String>()
     private val columns = mutableStateListOf<String>()
@@ -73,7 +68,7 @@ class ProjectScreen(project: Project) : Screen {
 
     private enum class DialogIntent {
         OpenSourceFilePicker,
-        OpenSyncFilePicker,
+        OpenSinkFilePicker,
         FileExtensionMismatch
     }
 
@@ -116,7 +111,7 @@ class ProjectScreen(project: Project) : Screen {
 
         LaunchedEffect(Unit) {
             openSrcDatabase(srcDb)
-            openSyncDatabase(syncDb)
+            openSinkDatabase(sinkDb)
         }
 
         Scaffold(
@@ -286,8 +281,8 @@ class ProjectScreen(project: Project) : Screen {
             )
 
             TextField(
-                value = syncDb,
-                onValueChange = { syncDb = it },
+                value = sinkDb,
+                onValueChange = { sinkDb = it },
                 modifier = Modifier.fillMaxWidth(),
                 label = {
                     Text("Destination Database")
@@ -300,7 +295,7 @@ class ProjectScreen(project: Project) : Screen {
                         IconButton(
                             onClick = {
                                 coroutine.launch {
-                                    openSyncDatabase(syncDb)
+                                    openSinkDatabase(sinkDb)
                                 }
                             },
                             content = {
@@ -308,7 +303,7 @@ class ProjectScreen(project: Project) : Screen {
                             }
                         )
 
-                        IconButton(onClick = { dialogIntent = DialogIntent.OpenSyncFilePicker }) {
+                        IconButton(onClick = { dialogIntent = DialogIntent.OpenSinkFilePicker }) {
                             AsyncImage(Icons.upload)
                         }
                     }
@@ -616,11 +611,11 @@ class ProjectScreen(project: Project) : Screen {
                 }
             }
 
-            DialogIntent.OpenSyncFilePicker -> {
+            DialogIntent.OpenSinkFilePicker -> {
                 openFilePicker {
-                    syncDb = it
+                    sinkDb = it
                     coroutine.launch {
-                        openSyncDatabase(it)
+                        openSinkDatabase(it)
                     }
                 }
             }
@@ -861,7 +856,7 @@ class ProjectScreen(project: Project) : Screen {
         }
     }
 
-    private suspend fun openSyncDatabase(path: String) {
+    private suspend fun openSinkDatabase(path: String) {
         if (path.isNotBlank()) {
             mutableDb?.close()
             mutableDb = null
@@ -877,7 +872,7 @@ class ProjectScreen(project: Project) : Screen {
                 lastModified = System.currentTimeMillis(),
                 projectDir,
                 srcDb,
-                syncDb
+                sinkDb
             )
 
             SaveProject(update)
@@ -914,7 +909,7 @@ class ProjectScreen(project: Project) : Screen {
     private var mutableDb: Database? = null
     private suspend fun getMutableDb(): Database {
         if (mutableDb == null) {
-            mutableDb = GetDatabase(syncDb)
+            mutableDb = GetDatabase(sinkDb)
         }
         return mutableDb!!
     }

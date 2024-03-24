@@ -5,5 +5,5 @@ data class Project(
     var lastModified: Long = System.currentTimeMillis(),
     var projectDir: String = "",
     var srcDb: String = "",
-    var syncDb: String = "",
+    var sinkDb: String = "",
 )

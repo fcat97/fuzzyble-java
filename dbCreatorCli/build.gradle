@@ -10,9 +10,16 @@ version = '0.6.6'
 dependencies {
     testImplementation platform('org.junit:junit-bom:5.9.1')
     testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api'
 
     implementation 'info.picocli:picocli:4.7.5'
     annotationProcessor 'info.picocli:picocli-codegen:4.7.5'
+
+    implementation 'org.xerial:sqlite-jdbc:3.45.1.0'
+    implementation("org.slf4j:slf4j-api:1.6.1")
+    implementation("org.slf4j:slf4j-simple:1.6.1")
+
+     implementation 'com.github.fcat97:fuzzyble-java:0.6.6'
 }
 
 test {
