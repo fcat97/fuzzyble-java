@@ -4,7 +4,8 @@ import com.github.fCat97.Const;
 import com.github.fCat97.ProjectConfig;
 import com.github.fCat97.database.Database;
 import com.github.fCat97.util.Logger;
-import com.github.fCat97.util.ProgressBar;
+import me.tongfei.progressbar.ProgressBar;
+import me.tongfei.progressbar.ProgressBarStyle;
 import media.uqab.fuzzybleJava.*;
 import picocli.CommandLine;
 
@@ -176,8 +177,13 @@ public class Create implements Runnable {
             if (d.override || !cursor.isPopulated(column)) {
                 Logger.w("populating data. please wait...");
 
-                final var progressBar = new ProgressBar(100);
-                ProgressListener listener = v -> progressBar.showProgress((int) (v * 100));
+                final var progressBar = ProgressBar.builder()
+                        .setStyle(ProgressBarStyle.ASCII)
+                        .clearDisplayOnFinish()
+                        .setTaskName("Populating")
+                        .setInitialMax(100)
+                        .build();
+                ProgressListener listener = v -> progressBar.stepTo((int) (v * 100));
 
                 cursor.populate(column, d.override, listener);
 
@@ -187,7 +193,7 @@ public class Create implements Runnable {
                 Logger.i("column is already populated. Skipping...");
             }
 
-            Logger.s("Data successfully populated on" + d.table + "/" + d.column);
+            Logger.s("\nData successfully populated on " + d.table + "/" + d.column);
         } catch (SQLException | ClassNotFoundException | IOException e) {
             Logger.e(e.getLocalizedMessage());
         }

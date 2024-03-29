@@ -3,6 +3,7 @@ package com.github.fCat97;
 
 import com.github.fCat97.subcommand.Create;
 import com.github.fCat97.subcommand.Info;
+import com.github.fCat97.subcommand.Search;
 import com.github.fCat97.subcommand.Set;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -12,7 +13,7 @@ import picocli.CommandLine.Command;
         mixinStandardHelpOptions = true,
         version = "0.6.6",
         description = "cli tool to create fuzzyble database for fuzzyble-java",
-        subcommands = {Info.class, Create.class, Set.class}
+        subcommands = {Info.class, Create.class, Set.class, Search.class}
 )
 public class DbCreatorCli implements Runnable {
     @Override

@@ -27,7 +27,7 @@ public class Set implements Runnable {
         @CommandLine.Option(names = {"-r", "--src-db"}, description = "Set src db path")
         String srcDb;
 
-        @CommandLine.Option(names = {"-y", "--sink-db"}, description = "Set sink db path")
+        @CommandLine.Option(names = {"-k", "--sink-db"}, description = "Set sink db path")
         String sinkDb;
     }
 

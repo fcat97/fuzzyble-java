@@ -15,11 +15,13 @@ dependencies {
     implementation 'info.picocli:picocli:4.7.5'
     annotationProcessor 'info.picocli:picocli-codegen:4.7.5'
 
+    implementation("me.tongfei:progressbar:0.10.0")
+
     implementation 'org.xerial:sqlite-jdbc:3.45.1.0'
     implementation("org.slf4j:slf4j-api:1.6.1")
     implementation("org.slf4j:slf4j-simple:1.6.1")
 
-     implementation 'com.github.fcat97:fuzzyble-java:0.6.6'
+    implementation 'com.github.fcat97:fuzzyble-java:0.6.6'
 }
 
 test {
@@ -35,6 +37,7 @@ graalvmNative {
     toolchainDetection.set(true)
     binaries {
         named("main") {
+            imageName.set("dbCreatorCli-$version")
             mainClass.set("com.github.fCat97.DbCreatorCli")
         }
     }
