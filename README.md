@@ -26,9 +26,20 @@ dependencies {
 ```
 
 > #### Use
-There are two main components that are exposed to the users of this library.
 
-1.  **`Fuzzyble`**: To make a database fuzzy searchable, implement the `Fuzzyble` interface on it.
-2. **`FuzzybleCursor`:** To manipulate the fuzzy utilities use get an instance of `FuzzyCursor` object.
-3. The rest are documented well.
+There are four main components that are exposed to the users of this library.
+
+1. **FuzzybleCursor:** To manipulate the fuzzy utilities get an instance of `FuzzyCursor`. It can perform the following functions:
+   1. Create required data for fuzzy search.
+   2. Get fuzzy suggestion for any text.
+2. **Fuzzyble**: To make a database fuzzy searchable, implement the `Fuzzyble` interface on it. 
+   Some databases are immutable. For example, android's `Room` database. The schema need to be defined during compile time, so an auxiliary mutable database is needed.
+   1. **Immutable Database**: This database works as read-only source database. This contains actual text on which search will be performed.
+   2. **Mutable Database**: This database is used to store required data for fuzzy search. If the source database itself `mutable`, there is no need to provide an addition database. Since `mutable` database can be used for both application i.e. source and sink data.
+3. **Strategy**: Defines how to generate and store required data for fuzzy matching.
+   1. WordLen: Simpler approach to find similar words. 
+   2. Trigram: Trigram approach for finding suggestion.
+   3. Implement `Strategy` class to provide better solution.
+4. **Similarity**: How to calculate if two words are similar? Currently, have:
+   1. Levenshtein Distance
  
